@@ -42,6 +42,7 @@ uv run python -m incident_data_classification.interactive_gru
 ```
 
 Enter `-1` at the prompt to select one of 25 preconfigured sample issue descriptions.
+Enter `X` to exit the prompt loop.
 
 Use `-1` for the built-in sample incident:
 

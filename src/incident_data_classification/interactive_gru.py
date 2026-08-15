@@ -10,6 +10,8 @@ from .config import DEFAULT_MODELS_DIR
 from .predict import predict_one
 
 
+PROMPT = "Enter an issue description, -1 for a preconfigured sample, or X to exit: "
+
 WORKFLOW_INSTRUCTIONS = {
     "CASCADING_FAILURE": [
         "Start dependency-impact workflow and identify the first failing upstream service.",
@@ -99,38 +101,60 @@ def get_workflow_instructions(label: str) -> list[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Interactive GRU incident classifier")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
-    parser.add_argument("--text", type=str, default=None, help="Issue description. Use -1 for a random sample.")
+    parser.add_argument("--text", type=str, default=None, help="Issue description. Use -1 for a random sample, X to exit.")
     parser.add_argument("--sample-seed", type=int, default=None, help="Optional deterministic sample selector.")
     parser.add_argument("--prefer-mps", action="store_true", help="Use Apple MPS if available")
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    text = args.text
-    if text is None:
-        text = input("Enter an issue description, or -1 for a preconfigured sample: ").strip()
-
+def resolve_input_text(text: str, sample_seed: int | None = None) -> str:
     if text == "-1":
-        sample = choose_sample(seed=args.sample_seed)
+        sample = choose_sample(seed=sample_seed)
         text = sample["description"]
         print(f"Using sample: {sample['id']}")
         print(f"{text}\n")
+    return text
 
-    artifact_dir = args.models_dir / "gru"
-    if not (artifact_dir / "model.pt").exists():
-        raise FileNotFoundError(f"GRU model not found at {artifact_dir}. Train the model first.")
 
-    result = predict_one(artifact_dir, text, prefer_mps=args.prefer_mps)
+def print_prediction(result: dict) -> None:
     print(f"Classification: {result['label']}")
     print(f"Confidence: {result['confidence']:.3f}")
     print("Top alternatives:")
     for item in result["top3"][1:]:
         print(f"  - {item['label']}: {item['confidence']:.3f}")
 
-    print("\nPretend workflow instructions:")
+    print("\nWorkflow Instructions:")
     for index, instruction in enumerate(get_workflow_instructions(result["label"]), start=1):
         print(f"{index}. {instruction}")
+    print()
+
+
+def run_once(text: str, artifact_dir: Path, sample_seed: int | None = None, prefer_mps: bool = False) -> None:
+    resolved_text = resolve_input_text(text, sample_seed=sample_seed)
+    if not resolved_text:
+        return
+    if not (artifact_dir / "model.pt").exists():
+        raise FileNotFoundError(f"GRU model not found at {artifact_dir}. Train the model first.")
+
+    result = predict_one(artifact_dir, resolved_text, prefer_mps=prefer_mps)
+    print_prediction(result)
+
+
+def main() -> None:
+    args = parse_args()
+    artifact_dir = args.models_dir / "gru"
+    if args.text is not None:
+        if args.text.strip().upper() == "X":
+            return
+        run_once(args.text.strip(), artifact_dir, sample_seed=args.sample_seed, prefer_mps=args.prefer_mps)
+        return
+
+    print("Enter X to exit.")
+    while True:
+        text = input(PROMPT).strip()
+        if text.upper() == "X":
+            break
+        run_once(text, artifact_dir, sample_seed=args.sample_seed, prefer_mps=args.prefer_mps)
 
 
 if __name__ == "__main__":
