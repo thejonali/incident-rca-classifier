@@ -1,0 +1,52 @@
+[
+  {
+    "id": "batch-cascading-payment",
+    "expected_classification": "CASCADING_FAILURE",
+    "description": "cascading service failure in payment-service production payment-service,email-service,file-storage,cart-service,queue-service,reporting-service payment-service cascading failure p1 azure northeurope production t+0m: cascading failure begins on payment-service t+20m: detected via threshold alert t+22m: on-call engineer paged t+28m: rca investigation begins a slow database query in inventory-service caused p99 latency to grow to 45 seconds. order-service began timing out and retrying. retry amplification caused 5x normal load on inventory-service."
+  },
+  {
+    "id": "batch-config-email",
+    "expected_classification": "CONFIGURATION_ERROR",
+    "description": "hpa replica oscillation in email-service production email-service hpa thrashing p3 azure southeastasia production t+0m: hpa thrashing begins on email-service t+7m: detected via ml anomaly detection a feature flag misconfiguration enabled a new code path in production that performed synchronous external api calls in the request handling thread and saturated the thread pool."
+  },
+  {
+    "id": "batch-data-admin",
+    "expected_classification": "DATA_CORRUPTION",
+    "description": "jvm gc pressure in admin-service staging admin-service high error rate p2 gcp us-east1 staging t+0m: gc pressure begins on admin-service t+19m: detected via threshold alert a memory leak in session management caused jvm heap growth, full gc cycles, severe latency spikes, missing automated rollback, and no fallback mechanism."
+  },
+  {
+    "id": "batch-dependency-email",
+    "expected_classification": "DEPENDENCY_FAILURE",
+    "description": "cache hit rate degradation in email-service production email-service cache degradation p2 aws eu-central-1 production t+0m: cache degradation begins on email-service a third-party payment gateway experienced an infrastructure outage and all payment processing requests returned 503 after 30-second timeouts, triggering circuit breaker activation."
+  },
+  {
+    "id": "batch-deployment-fraud",
+    "expected_classification": "DEPLOYMENT_REGRESSION",
+    "description": "elevated error rate in fraud-detection staging fraud-detection high error rate p1 gcp us-central1 staging t+0m: high error rate begins on fraud-detection after deployment a configuration change incorrectly set connection pool maximum size to 5 instead of 500, causing pool exhaustion under production traffic."
+  },
+  {
+    "id": "batch-infra-cart",
+    "expected_classification": "INFRASTRUCTURE_FAILURE",
+    "description": "pod crashloopbackoff in cart-service production cart-service pod crash loop p1 aws us-east-1 production t+0m: pod crash loop begins on cart-service an aws ec2 hardware failure caused sudden node failure in the kubernetes cluster, pod evictions, reduced replica count, cpu saturation, and latency degradation."
+  },
+  {
+    "id": "batch-resource-cache",
+    "expected_classification": "RESOURCE_EXHAUSTION",
+    "description": "cpu spike detected in cache-service production cache-service cpu spike p2 gcp europe-west2 production t+0m: cpu spike begins on cache-service disk i/o saturation occurred when a scheduled analytics job executed during peak traffic hours and performed a full table scan on a 500gb table without read replica targeting."
+  },
+  {
+    "id": "batch-leak-user",
+    "expected_classification": "RESOURCE_LEAK",
+    "description": "memory leak detected in user-service production user-service memory leak p2 gcp europe-west1 production t+0m: memory leak begins on user-service a memory leak in session management caused jvm heap growth at 50mb per hour, full gc cycles every 2 minutes, and severe latency spikes."
+  },
+  {
+    "id": "batch-security-payment",
+    "expected_classification": "SECURITY_INCIDENT",
+    "description": "ssl certificate expiry warning in payment-service production payment-service ssl cert expiry warning p4 azure westeurope production t+0m: ssl cert expiry warning begins on payment-service an ssl certificate expired for the api-gateway load balancer endpoint causing ssl handshake failures and rising browser client errors."
+  },
+  {
+    "id": "batch-traffic-reporting",
+    "expected_classification": "TRAFFIC_OVERLOAD",
+    "description": "traffic surge causing overload in reporting-service production reporting-service traffic spike overload p1 aws us-east-1 production t+0m: traffic spike overload begins on reporting-service a flash sale event drove 8x normal traffic volume over a 15-minute window and autoscaling could not provision pods fast enough."
+  }
+]

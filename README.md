@@ -44,6 +44,12 @@ uv run python -m incident_data_classification.interactive_gru
 Enter `-1` at the prompt to select one of 25 preconfigured sample issue descriptions.
 Enter `X` to exit the prompt loop.
 
+Run 10 curated batch samples in one command. These are pulled from the GRU reference set and should resolve to mostly different classifications, with one or two repeats possible:
+
+```bash
+uv run python -m incident_data_classification.interactive_gru --batch-count 10
+```
+
 Use `-1` for the built-in sample incident:
 
 ```bash

@@ -81,6 +81,40 @@ def load_sample_descriptions() -> list[dict[str, str]]:
     return json.loads(sample_path.read_text(encoding="utf-8"))
 
 
+def load_batch_descriptions() -> list[dict[str, str]]:
+    sample_path = files("incident_data_classification").joinpath("samples/batch_issue_descriptions.json")
+    return json.loads(sample_path.read_text(encoding="utf-8"))
+
+
+def build_reference_batch(reference_rows: list[dict], count: int) -> list[dict[str, str]]:
+    samples = []
+    seen_labels = set()
+    for row in reference_rows:
+        label = row.get("root_cause_category")
+        text = row.get("input_text")
+        if not label or not text or label in seen_labels:
+            continue
+        seen_labels.add(label)
+        samples.append(
+            {
+                "id": f"reference-{label.lower()}",
+                "expected_classification": label,
+                "description": text,
+            }
+        )
+        if len(samples) >= count:
+            break
+    return samples
+
+
+def load_reference_batch(artifact_dir: Path, count: int) -> list[dict[str, str]]:
+    reference_path = artifact_dir / "reference_incidents.json"
+    if not reference_path.exists():
+        return []
+    rows = json.loads(reference_path.read_text(encoding="utf-8"))
+    return build_reference_batch(rows, count)
+
+
 def choose_sample(seed: int | None = None) -> dict[str, str]:
     samples = load_sample_descriptions()
     rng = random.Random(seed)
@@ -102,6 +136,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Interactive GRU incident classifier")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
     parser.add_argument("--text", type=str, default=None, help="Issue description. Use -1 for a random sample, X to exit.")
+    parser.add_argument("--batch-count", type=int, default=0, help="Run this many curated batch samples and exit.")
     parser.add_argument("--sample-seed", type=int, default=None, help="Optional deterministic sample selector.")
     parser.add_argument("--prefer-mps", action="store_true", help="Use Apple MPS if available")
     return parser.parse_args()
@@ -129,6 +164,41 @@ def print_prediction(result: dict) -> None:
     print()
 
 
+def print_batch_prediction(sample: dict[str, str], result: dict) -> None:
+    expected = sample.get("expected_classification", "-")
+    status = "ok" if expected == result["label"] else "check"
+    print(f"Sample: {sample['id']}")
+    print(f"Expected: {expected}")
+    print(f"Classification: {result['label']}")
+    print(f"Confidence: {result['confidence']:.3f}")
+    print(f"Status: {status}")
+    print("Workflow Instructions:")
+    for index, instruction in enumerate(get_workflow_instructions(result["label"]), start=1):
+        print(f"{index}. {instruction}")
+    print()
+
+
+def run_batch(count: int, artifact_dir: Path, prefer_mps: bool = False) -> None:
+    if count <= 0:
+        return
+    if not (artifact_dir / "model.pt").exists():
+        raise FileNotFoundError(f"GRU model not found at {artifact_dir}. Train the model first.")
+
+    samples = load_reference_batch(artifact_dir, count)
+    if len(samples) < count:
+        samples = load_batch_descriptions()[:count]
+
+    counts: dict[str, int] = {}
+    for sample in samples:
+        result = predict_one(artifact_dir, sample["description"], prefer_mps=prefer_mps)
+        counts[result["label"]] = counts.get(result["label"], 0) + 1
+        print_batch_prediction(sample, result)
+
+    print("Batch classification counts:")
+    for label, total in sorted(counts.items()):
+        print(f"- {label}: {total}")
+
+
 def run_once(text: str, artifact_dir: Path, sample_seed: int | None = None, prefer_mps: bool = False) -> None:
     resolved_text = resolve_input_text(text, sample_seed=sample_seed)
     if not resolved_text:
@@ -143,6 +213,10 @@ def run_once(text: str, artifact_dir: Path, sample_seed: int | None = None, pref
 def main() -> None:
     args = parse_args()
     artifact_dir = args.models_dir / "gru"
+    if args.batch_count:
+        run_batch(args.batch_count, artifact_dir, prefer_mps=args.prefer_mps)
+        return
+
     if args.text is not None:
         if args.text.strip().upper() == "X":
             return
