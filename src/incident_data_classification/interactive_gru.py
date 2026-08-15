@@ -11,6 +11,7 @@ from .predict import predict_one
 
 
 PROMPT = "Enter an issue description, -1 for a preconfigured sample, or X to exit: "
+MAX_BATCH_MESSAGE_LENGTH = 360
 
 WORKFLOW_INSTRUCTIONS = {
     "CASCADING_FAILURE": [
@@ -166,8 +167,12 @@ def print_prediction(result: dict) -> None:
 
 def print_batch_prediction(sample: dict[str, str], result: dict) -> None:
     expected = sample.get("expected_classification", "-")
+    message = sample.get("description", "")
+    if len(message) > MAX_BATCH_MESSAGE_LENGTH:
+        message = f"{message[:MAX_BATCH_MESSAGE_LENGTH].rstrip()}..."
     status = "ok" if expected == result["label"] else "check"
     print(f"Sample: {sample['id']}")
+    print(f"Message: {message}")
     print(f"Expected: {expected}")
     print(f"Classification: {result['label']}")
     print(f"Confidence: {result['confidence']:.3f}")

@@ -78,7 +78,11 @@ def test_print_prediction_uses_workflow_instructions_heading_and_trailing_newlin
 
 def test_print_batch_prediction_includes_expected_and_status(capsys):
     print_batch_prediction(
-        {"id": "sample-a", "expected_classification": "RESOURCE_EXHAUSTION"},
+        {
+            "id": "sample-a",
+            "description": "cpu spike detected in cache-service",
+            "expected_classification": "RESOURCE_EXHAUSTION",
+        },
         {
             "label": "RESOURCE_EXHAUSTION",
             "confidence": 0.91,
@@ -89,5 +93,25 @@ def test_print_batch_prediction_includes_expected_and_status(capsys):
     output = capsys.readouterr().out
 
     assert "Sample: sample-a" in output
+    assert "Message: cpu spike detected in cache-service" in output
     assert "Expected: RESOURCE_EXHAUSTION" in output
     assert "Status: ok" in output
+
+
+def test_print_batch_prediction_truncates_long_message(capsys):
+    print_batch_prediction(
+        {
+            "id": "sample-a",
+            "description": "x" * 400,
+            "expected_classification": "RESOURCE_EXHAUSTION",
+        },
+        {
+            "label": "RESOURCE_EXHAUSTION",
+            "confidence": 0.91,
+            "top3": [{"label": "RESOURCE_EXHAUSTION", "confidence": 0.91}],
+        },
+    )
+
+    output = capsys.readouterr().out
+
+    assert "Message: " + ("x" * 360) + "..." in output
