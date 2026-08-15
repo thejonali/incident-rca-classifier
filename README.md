@@ -35,6 +35,14 @@ Training restores the best validation checkpoint before evaluating on the test s
 
 ## Predict
 
+Run the interactive GRU-only workflow demo:
+
+```bash
+uv run python -m incident_data_classification.interactive_gru
+```
+
+Enter `-1` at the prompt to select one of 25 preconfigured sample issue descriptions.
+
 Use `-1` for the built-in sample incident:
 
 ```bash

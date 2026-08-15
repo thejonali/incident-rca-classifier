@@ -21,3 +21,6 @@ package = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+incident_data_classification = ["samples/*.json"]

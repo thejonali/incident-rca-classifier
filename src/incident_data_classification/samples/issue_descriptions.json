@@ -1,0 +1,102 @@
+[
+  {
+    "id": "cpu-cache-prod",
+    "description": "cache-service in production has a sudden CPU spike, p99 latency is rising, threshold alerts fired, and autoscaling is not adding replicas quickly enough."
+  },
+  {
+    "id": "memory-user-prod",
+    "description": "user-service heap usage has climbed all day, full garbage collection is happening every few minutes, and requests are timing out after a new session release."
+  },
+  {
+    "id": "disk-payment-prod",
+    "description": "payment-service checkout latency increased after the nightly analytics job started. Disk I/O is saturated and database reads are much slower than normal."
+  },
+  {
+    "id": "dependency-inventory",
+    "description": "order-service is timing out while calling inventory-service. Retries are amplifying traffic and both services are showing elevated error rates."
+  },
+  {
+    "id": "deployment-billing",
+    "description": "billing-service started failing event publishing right after deployment. The service is healthy but message broker connections are rejected."
+  },
+  {
+    "id": "config-auth",
+    "description": "auth-service cannot connect to Redis after a configuration change. The pod starts successfully, but all token validation requests fail."
+  },
+  {
+    "id": "traffic-gateway",
+    "description": "api-gateway traffic is three times normal after a marketing campaign launched. CPU is high, queues are growing, and customers see intermittent 503 responses."
+  },
+  {
+    "id": "infra-node-failure",
+    "description": "three Kubernetes nodes became unavailable in one availability zone. Several pods were evicted and remaining replicas are handling too much load."
+  },
+  {
+    "id": "scheduled-reporting",
+    "description": "the daily reporting batch job missed its completion window, downstream dashboards are stale, and the scheduler logs show repeated task retries."
+  },
+  {
+    "id": "third-party-sms",
+    "description": "sms-service delivery failures increased after the external SMS provider began returning 429 and 5xx responses. Internal queues are backing up."
+  },
+  {
+    "id": "security-login",
+    "description": "login-service is receiving a sharp increase in failed authentication attempts from a narrow set of IP ranges and account lockouts are rising."
+  },
+  {
+    "id": "data-corruption-orders",
+    "description": "orders written in the last hour have inconsistent totals and missing line items. The issue began after a schema migration and replay job ran."
+  },
+  {
+    "id": "resource-leak-files",
+    "description": "file-storage has steadily increasing open file descriptors, memory usage is climbing, and restarts temporarily clear the symptoms."
+  },
+  {
+    "id": "cascading-search",
+    "description": "search-service latency caused product-service timeouts, retries increased load, and the failure spread to recommendation-service."
+  },
+  {
+    "id": "queue-notification",
+    "description": "notification-service has consumer lag growing rapidly after Kafka broker leadership changed during peak load."
+  },
+  {
+    "id": "db-pool-profile",
+    "description": "profile-service database connection pool is exhausted. Threads are blocked waiting for connections and request latency is rising."
+  },
+  {
+    "id": "cache-split-brain",
+    "description": "cache reads are inconsistent after Redis maintenance. Some users receive stale data while others see cache miss storms."
+  },
+  {
+    "id": "cdn-third-party",
+    "description": "static assets are failing in one region because the CDN provider reports degraded edge nodes and elevated origin fetch errors."
+  },
+  {
+    "id": "bad-feature-flag",
+    "description": "a newly enabled feature flag changed checkout routing and caused elevated payment declines for a subset of users."
+  },
+  {
+    "id": "certificate-expiry",
+    "description": "partner-api calls started failing TLS verification after a certificate expired overnight. Health checks are failing for the integration."
+  },
+  {
+    "id": "storage-volume",
+    "description": "database volume latency spiked after storage throughput credits were exhausted. Write latency and replication lag are increasing."
+  },
+  {
+    "id": "pod-crash-loop",
+    "description": "fraud-detection pods are crash looping after the latest image rollout. Logs show missing environment variables and startup validation failures."
+  },
+  {
+    "id": "hot-partition",
+    "description": "analytics-api is slow because one database partition is receiving most writes. CPU and lock waits are high on a single shard."
+  },
+  {
+    "id": "cron-permission",
+    "description": "invoice-generation cron jobs are failing with permission denied errors after service account rotation."
+  },
+  {
+    "id": "rate-limit-provider",
+    "description": "email-service cannot send password reset emails because the third-party provider is rate limiting requests after a traffic spike."
+  }
+]
