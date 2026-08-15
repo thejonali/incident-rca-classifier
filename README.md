@@ -24,11 +24,11 @@ uv run python -m incident_data_classification.dataset
 
 ## Train Small Models
 
-These defaults are intentionally small for a MacBook-class machine:
+These tuned runs are still practical on a 16 GB MacBook, but the GRU run takes a few minutes on CPU:
 
 ```bash
-uv run python -m incident_data_classification.train --model-type gru --max-rows 3000 --epochs 8
-uv run python -m incident_data_classification.train --model-type lstm --max-rows 3000 --epochs 8
+uv run python -m incident_data_classification.train --model-type gru --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
+uv run python -m incident_data_classification.train --model-type lstm --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
 ```
 
 Training restores the best validation checkpoint before evaluating on the test split. By default, early stopping watches `val_macro_f1` with `--patience 3`.

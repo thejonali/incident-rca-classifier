@@ -1,9 +1,10 @@
 import pandas as pd
+import torch
 
 from incident_data_classification.config import INPUT_COLUMNS, LEAKY_COLUMNS
 from incident_data_classification.data import build_input_text, validate_columns
 from incident_data_classification.labels import LabelEncoder
-from incident_data_classification.train import is_improvement
+from incident_data_classification.train import is_improvement, make_class_weight_tensor
 
 
 def test_input_columns_exclude_leaky_fields():
@@ -58,3 +59,10 @@ def test_is_improvement_handles_loss_and_score_metrics():
     assert not is_improvement("val_macro_f1", current=0.5005, best=0.50, min_delta=0.001)
     assert is_improvement("val_loss", current=0.48, best=0.50, min_delta=0.001)
     assert not is_improvement("val_loss", current=0.4995, best=0.50, min_delta=0.001)
+
+
+def test_balanced_class_weights_are_larger_for_minority_classes():
+    weights = make_class_weight_tensor([0, 0, 0, 1], num_classes=2, device=torch.device("cpu"))
+
+    assert weights.shape == (2,)
+    assert weights[1] > weights[0]

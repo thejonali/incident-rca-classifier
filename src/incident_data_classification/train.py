@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.utils.class_weight import compute_class_weight
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -88,6 +89,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.25)
     parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument(
+        "--class-weights",
+        choices=["none", "balanced"],
+        default="none",
+        help="Use balanced class weights in the cross-entropy loss.",
+    )
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--min-delta", type=float, default=0.001)
     parser.add_argument(
@@ -106,6 +113,12 @@ def is_improvement(metric_name: str, current: float, best: float | None, min_del
     if metric_name == "val_loss":
         return current < best - min_delta
     return current > best + min_delta
+
+
+def make_class_weight_tensor(y_train: list[int], num_classes: int, device: torch.device) -> torch.Tensor:
+    classes = np.arange(num_classes)
+    weights = compute_class_weight(class_weight="balanced", classes=classes, y=np.array(y_train))
+    return torch.tensor(weights, dtype=torch.float32, device=device)
 
 
 def main() -> None:
@@ -141,7 +154,10 @@ def main() -> None:
         dropout=args.dropout,
     ).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    class_weight_tensor = None
+    if args.class_weights == "balanced":
+        class_weight_tensor = make_class_weight_tensor(y_train, label_encoder.size, device)
+    criterion = nn.CrossEntropyLoss(weight=class_weight_tensor)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     history: list[dict[str, float]] = []
     best_metric: float | None = None
@@ -216,6 +232,7 @@ def main() -> None:
             "hidden_dim": args.hidden_dim,
             "dropout": args.dropout,
             "learning_rate": args.learning_rate,
+            "class_weights": args.class_weights,
             "patience": args.patience,
             "min_delta": args.min_delta,
             "monitor": args.monitor,
