@@ -73,6 +73,8 @@ uv run python -m incident_data_classification.train --model-type gru --max-rows 
 
 ## Evaluate
 
+Train the models first so `models/gru/` and `models/lstm/` exist locally:
+
 ```bash
 uv run python -m incident_data_classification.evaluate
 ```
