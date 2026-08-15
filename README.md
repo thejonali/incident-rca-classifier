@@ -39,9 +39,11 @@ uv run python -m incident_data_classification.kaggle_dataset
 These defaults are intentionally small for a MacBook-class machine:
 
 ```bash
-uv run python -m incident_data_classification.train --model-type gru --max-rows 3000 --epochs 3
-uv run python -m incident_data_classification.train --model-type lstm --max-rows 3000 --epochs 3
+uv run python -m incident_data_classification.train --model-type gru --max-rows 3000 --epochs 8
+uv run python -m incident_data_classification.train --model-type lstm --max-rows 3000 --epochs 8
 ```
+
+Training restores the best validation checkpoint before evaluating on the test split. By default, early stopping watches `val_macro_f1` with `--patience 3`.
 
 ## Predict
 

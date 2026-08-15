@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import time
 from pathlib import Path
@@ -79,15 +80,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
     parser.add_argument("--reports-dir", type=Path, default=DEFAULT_REPORTS_DIR)
     parser.add_argument("--max-rows", type=int, default=3000)
-    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--vocab-size", type=int, default=8000)
     parser.add_argument("--max-length", type=int, default=96)
     parser.add_argument("--embedding-dim", type=int, default=64)
     parser.add_argument("--hidden-dim", type=int, default=64)
+    parser.add_argument("--dropout", type=float, default=0.25)
     parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument("--patience", type=int, default=3)
+    parser.add_argument("--min-delta", type=float, default=0.001)
+    parser.add_argument(
+        "--monitor",
+        choices=["val_macro_f1", "val_accuracy", "val_loss"],
+        default="val_macro_f1",
+        help="Validation metric used for best-checkpoint restore and early stopping.",
+    )
     parser.add_argument("--prefer-mps", action="store_true", help="Use Apple MPS if available")
     return parser.parse_args()
+
+
+def is_improvement(metric_name: str, current: float, best: float | None, min_delta: float) -> bool:
+    if best is None:
+        return True
+    if metric_name == "val_loss":
+        return current < best - min_delta
+    return current > best + min_delta
 
 
 def main() -> None:
@@ -120,11 +138,16 @@ def main() -> None:
         num_classes=label_encoder.size,
         embedding_dim=args.embedding_dim,
         hidden_dim=args.hidden_dim,
+        dropout=args.dropout,
     ).to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     history: list[dict[str, float]] = []
+    best_metric: float | None = None
+    best_epoch = 0
+    best_state_dict: dict[str, torch.Tensor] | None = None
+    epochs_without_improvement = 0
 
     start = time.perf_counter()
     for epoch in range(1, args.epochs + 1):
@@ -146,7 +169,25 @@ def main() -> None:
             f"val_macro_f1={row['val_macro_f1']:.3f}"
         )
 
+        current_metric = float(row[args.monitor])
+        if is_improvement(args.monitor, current_metric, best_metric, args.min_delta):
+            best_metric = current_metric
+            best_epoch = epoch
+            best_state_dict = copy.deepcopy(model.state_dict())
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+            if args.patience > 0 and epochs_without_improvement >= args.patience:
+                print(
+                    f"Early stopping after epoch {epoch}; best {args.monitor}="
+                    f"{best_metric:.3f} at epoch {best_epoch}."
+                )
+                break
+
     training_seconds = time.perf_counter() - start
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
+
     test_loss, test_pred, test_true = run_epoch(model, test_loader, criterion, device)
     labels = [label for label, _ in sorted(label_encoder.label_to_id.items(), key=lambda item: item[1])]
     metrics = {
@@ -156,6 +197,9 @@ def main() -> None:
         "class_distribution": df[TARGET_COLUMN].value_counts().sort_index().to_dict(),
         "device": str(device),
         "training_seconds": training_seconds,
+        "best_epoch": best_epoch,
+        "best_monitor": args.monitor,
+        "best_monitor_value": best_metric,
         "test_loss": test_loss,
         "test_accuracy": accuracy_score(test_true, test_pred),
         "test_macro_f1": f1_score(test_true, test_pred, average="macro"),
@@ -170,7 +214,11 @@ def main() -> None:
             "max_length": args.max_length,
             "embedding_dim": args.embedding_dim,
             "hidden_dim": args.hidden_dim,
+            "dropout": args.dropout,
             "learning_rate": args.learning_rate,
+            "patience": args.patience,
+            "min_delta": args.min_delta,
+            "monitor": args.monitor,
             "max_rows": args.max_rows,
         },
     }

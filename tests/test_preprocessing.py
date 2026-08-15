@@ -3,6 +3,7 @@ import pandas as pd
 from incident_data_classification.config import INPUT_COLUMNS, LEAKY_COLUMNS
 from incident_data_classification.data import build_input_text, validate_columns
 from incident_data_classification.labels import LabelEncoder
+from incident_data_classification.train import is_improvement
 
 
 def test_input_columns_exclude_leaky_fields():
@@ -51,3 +52,9 @@ def test_validate_columns_rejects_missing_required_columns():
     else:
         raise AssertionError("validate_columns should reject missing columns")
 
+
+def test_is_improvement_handles_loss_and_score_metrics():
+    assert is_improvement("val_macro_f1", current=0.51, best=0.50, min_delta=0.001)
+    assert not is_improvement("val_macro_f1", current=0.5005, best=0.50, min_delta=0.001)
+    assert is_improvement("val_loss", current=0.48, best=0.50, min_delta=0.001)
+    assert not is_improvement("val_loss", current=0.4995, best=0.50, min_delta=0.001)
