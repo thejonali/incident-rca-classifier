@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.egg-info/
+
+*.md
+!README.md
+!README_MODEL_SCORES.md
+
+data/raw/*.csv
+data/processed/
+.cache/
+models/
+reports/

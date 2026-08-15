@@ -1,0 +1,24 @@
+[project]
+name = "incident-data-classification"
+version = "0.1.0"
+description = "Small GRU and LSTM experiments for synthetic incident root-cause classification"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "kaggle>=1.7",
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "torch>=2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
