@@ -3,10 +3,10 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.egg-info/
+build/
+dist/
 
-*.md
-!README.md
-!README_MODEL_SCORES.md
+plan.md
 
 data/raw/*.csv
 data/processed/

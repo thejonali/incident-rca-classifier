@@ -19,7 +19,7 @@ def download_incidents_csv(
         return csv_path
 
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    request = Request(DATASET_DOWNLOAD_URL, headers={"User-Agent": "incident-data-classification/0.1"})
+    request = Request(DATASET_DOWNLOAD_URL, headers={"User-Agent": "incident-rca-classifier/0.1"})
 
     try:
         with urlopen(request, timeout=timeout) as response:
@@ -49,4 +49,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

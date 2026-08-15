@@ -111,7 +111,7 @@ wheels = [
 ]
 
 [[package]]
-name = "incident-data-classification"
+name = "incident-rca-classifier"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

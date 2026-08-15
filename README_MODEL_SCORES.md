@@ -1,6 +1,6 @@
 # Model Scores
 
-These results come from the current full-dataset training runs on `incidents_training_dataset.csv`.
+These results come from full-dataset training runs on `incidents_training_dataset.csv`. The dataset is synthetic, so treat these as reproducibility metrics for this experiment rather than claims about real incident RCA performance.
 
 Run configuration:
 
@@ -17,7 +17,7 @@ Run configuration:
 | GRU | 0.996 | 0.993 | 0.996 | 18 | 159.7s | Balanced class weights, 20 epochs |
 | LSTM | 0.922 | 0.721 | 0.884 | 1 | 23.2s | Smaller LSTM tuned for accuracy |
 
-The GRU is the stronger model on this dataset. It clears 90% on accuracy, macro F1, and weighted F1. The LSTM clears 90% accuracy, but macro F1 remains weak because it still misses several smaller classes.
+The GRU is the stronger classifier on this dataset. It clears 90% on accuracy, macro F1, and weighted F1. The LSTM clears 90% accuracy, but macro F1 remains weak because it still misses several smaller classes.
 
 ## GRU Per-Class Scores
 
@@ -55,7 +55,7 @@ The GRU is the stronger model on this dataset. It clears 90% on accuracy, macro 
 
 ## Current Read
 
-The class-weighted GRU is the model to trust for this dataset. It fixed the previously missed minority categories and performs above 95% F1 for every class.
+The class-weighted GRU is the strongest classifier in this repository. It fixed the previously missed minority categories and performs above 95% F1 for every class in this synthetic test split.
 
 The LSTM reaches 92.2% accuracy, but that number is inflated by strong performance on the common categories. It still fails to identify:
 

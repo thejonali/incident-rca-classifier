@@ -1,8 +1,9 @@
 [project]
-name = "incident-data-classification"
+name = "incident-rca-classifier"
 version = "0.1.0"
-description = "Small GRU and LSTM experiments for synthetic incident root-cause classification"
+description = "GRU/LSTM incident root-cause classifier with a workflow-routing demo on a synthetic RCA dataset"
 readme = "README.md"
+license = "Apache-2.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "numpy>=2.0",
@@ -15,6 +16,9 @@ dependencies = [
 dev = [
     "pytest>=8.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/thejonali/incident-rca-classifier"
 
 [tool.uv]
 package = true
