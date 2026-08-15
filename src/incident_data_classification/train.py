@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .config import DEFAULT_MODELS_DIR, DEFAULT_REPORTS_DIR, RANDOM_SEED, TARGET_COLUMN
 from .data import load_incidents, prepare_sequences, split_dataset
-from .kaggle_dataset import resolve_incidents_csv
+from .dataset import resolve_incidents_csv
 from .labels import LabelEncoder
 from .model import RecurrentIncidentClassifier, get_device
 
@@ -74,8 +74,8 @@ def save_json(path: Path, payload: dict) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train a small GRU or LSTM incident classifier")
-    parser.add_argument("--csv", type=Path, default=None, help="Optional local CSV path. Defaults to Kaggle cache.")
-    parser.add_argument("--force-download", action="store_true", help="Redownload the Kaggle CSV before training.")
+    parser.add_argument("--csv", type=Path, default=None, help="Optional local CSV path. Defaults to data/raw.")
+    parser.add_argument("--force-download", action="store_true", help="Redownload the local CSV before training.")
     parser.add_argument("--model-type", choices=["gru", "lstm"], required=True)
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
     parser.add_argument("--reports-dir", type=Path, default=DEFAULT_REPORTS_DIR)

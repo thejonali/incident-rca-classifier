@@ -1,14 +1,14 @@
 from pathlib import Path
 
 from incident_data_classification.config import DEFAULT_CSV_PATH
-from incident_data_classification.kaggle_dataset import resolve_incidents_csv
+from incident_data_classification.dataset import resolve_incidents_csv
 
 
-def test_default_dataset_path_uses_kaggle_cache():
+def test_default_dataset_path_uses_local_raw_folder():
     parts = DEFAULT_CSV_PATH.parts
 
-    assert ".cache" in parts
-    assert "kaggle" in parts
+    assert "data" in parts
+    assert "raw" in parts
     assert DEFAULT_CSV_PATH.name == "incidents_training_dataset.csv"
 
 

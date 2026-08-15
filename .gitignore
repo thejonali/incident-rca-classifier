@@ -10,6 +10,5 @@ __pycache__/
 
 data/raw/*.csv
 data/processed/
-.cache/
 models/
 reports/

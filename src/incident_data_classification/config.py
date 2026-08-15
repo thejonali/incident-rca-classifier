@@ -2,10 +2,14 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-KAGGLE_DATASET_REF = "sakthivarshans/rca-synthetic-training-dataset"
-KAGGLE_DATASET_FILE = "incidents_training_dataset.csv"
-DEFAULT_DATASET_CACHE_DIR = PROJECT_ROOT / ".cache" / "kaggle"
-DEFAULT_CSV_PATH = DEFAULT_DATASET_CACHE_DIR / KAGGLE_DATASET_FILE
+DATASET_FILE = "incidents_training_dataset.csv"
+DATASET_DOWNLOAD_URL = (
+    "https://www.kaggle.com/api/v1/datasets/download/"
+    "sakthivarshans/rca-synthetic-training-dataset"
+    "?file_name=incidents_training_dataset.csv"
+)
+DEFAULT_RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
+DEFAULT_CSV_PATH = DEFAULT_RAW_DATA_DIR / DATASET_FILE
 DEFAULT_MODELS_DIR = PROJECT_ROOT / "models"
 DEFAULT_REPORTS_DIR = PROJECT_ROOT / "reports"
 

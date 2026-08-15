@@ -5,7 +5,6 @@ description = "Small GRU and LSTM experiments for synthetic incident root-cause 
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    "kaggle>=1.7",
     "numpy>=2.0",
     "pandas>=2.2",
     "scikit-learn>=1.5",
