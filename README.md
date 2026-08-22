@@ -1,8 +1,6 @@
 # Incident RCA Classifier
 
-GRU/LSTM incident root-cause classifier with a workflow-routing demo on a synthetic RCA dataset.
-
-This repository is an applied ML experiment, not an LLM agent. It trains recurrent neural-network classifiers that map incident descriptions to root-cause categories, then uses the predicted class to choose placeholder workflow instructions.
+PyTorch GRU/LSTM classifiers for mapping incident descriptions to root-cause categories, with a CLI demo that routes the predicted class to workflow instructions.
 
 ## What It Does
 
@@ -13,9 +11,20 @@ This repository is an applied ML experiment, not an LLM agent. It trains recurre
 - Runs an interactive GRU workflow-routing demo for custom incidents.
 - Runs a curated 10-sample batch demo that exercises mostly different classifications.
 
+## GRU Highlights
+
+The tuned GRU is the strongest model in the project on the current synthetic holdout split:
+
+- 99.6% accuracy, 99.3% macro F1, and 99.6% weighted F1 across 2,250 test rows.
+- Above 95% F1 for every root-cause category.
+- Balanced class weights improved minority-class performance across categories such as `DATA_CORRUPTION`, `SCHEDULED_JOB_FAILURE`, and `THIRD_PARTY_FAILURE`.
+- Trained in about 160 seconds on CPU with `embedding_dim=96`, `hidden_dim=96`, and `dropout=0.25`.
+
+Full GRU and LSTM scorecards are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
+
 ## Project Status
 
-Experimental and portfolio-oriented. The tuned GRU performs strongly on this synthetic dataset, but the project is not production RCA tooling and should not be used for operational incident decisions without real incident data, stronger validation, monitoring, and human approval gates.
+Portfolio-oriented ML project demonstrating lightweight incident classification, model comparison, and workflow-routing ergonomics on synthetic incident data. Production use would require real incident history, monitoring, drift detection, and human review gates.
 
 ## Dataset
 
@@ -147,8 +156,7 @@ GitHub Actions runs `uv sync --locked` and `uv run pytest -q` on pushes, pull re
 ## Limitations
 
 - The dataset is synthetic, so high scores can reflect synthetic generation patterns rather than real-world RCA performance.
-- The model is a classifier, not an LLM, planner, or autonomous incident-response agent.
-- Workflow instructions are placeholders that simulate routing. They do not execute remediation.
+- Workflow instructions demonstrate routing behavior. They do not execute remediation.
 - The interactive natural-language samples are intentionally less model-aligned than the training data and may skew toward common classes.
 - The LSTM clears 90% accuracy but has much weaker macro F1 than the GRU because it misses several smaller classes.
 - No trained model binaries, raw data, or generated reports are committed.
