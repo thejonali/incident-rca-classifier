@@ -1,31 +1,33 @@
 # Incident RCA Classifier
 
-PyTorch GRU/LSTM classifiers for mapping incident descriptions to root-cause categories, with a CLI demo that routes the predicted class to workflow instructions.
+Incident root-cause classifier focused on a TF-IDF + Linear SVM model for fast, leakage-aware RCA prediction from alert-time incident text. Legacy GRU/LSTM experiments are retained as neural comparison models.
 
 ## What It Does
 
 - Downloads the synthetic RCA incident training CSV on first training run.
 - Builds incident text from explicit feature profiles for alert-time, early-incident, and postmortem evaluation.
-- Trains GRU and LSTM classifiers on the same stratified train/validation/test split.
-- Trains TF-IDF classical baselines for checking whether neural sequence models add value.
+- Trains TF-IDF classical baselines and uses Linear SVM as the strongest incident-time classifier.
+- Retains GRU and LSTM classifiers as legacy comparison models on the same stratified train/validation/test split.
 - Evaluates accuracy, macro F1, weighted F1, and per-class precision/recall/F1.
 - Runs an interactive GRU workflow-routing demo for custom incidents.
 - Runs a curated 10-sample batch demo that exercises mostly different classifications.
 
-## GRU Highlights
+## Current Model Focus
 
-The tuned GRU is the strongest model in the project on the postmortem synthetic holdout split:
+The current focus is TF-IDF + Linear SVM because it performs best on the realistic incident-time profiles:
 
-- 99.6% accuracy, 99.3% macro F1, and 99.6% weighted F1 across 2,250 test rows.
-- Above 95% F1 for every root-cause category.
-- Balanced class weights improved minority-class performance across categories such as `DATA_CORRUPTION`, `SCHEDULED_JOB_FAILURE`, and `THIRD_PARTY_FAILURE`.
-- Trained in about 125 seconds on CPU with `embedding_dim=96`, `hidden_dim=96`, and `dropout=0.25`.
+- `alert_only`: 99.7% accuracy, 99.4% macro F1, and 99.7% weighted F1 across 2,250 test rows.
+- `early_incident`: 99.6% accuracy, 99.3% macro F1, and 99.6% weighted F1.
+- Training finishes in about one second on CPU, with sub-millisecond inference per incident.
+- The model uses sparse lexical features, which match the short categorical alert text in this synthetic dataset.
 
-Full GRU and LSTM scorecards are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
+The legacy GRU/LSTM models are still useful as comparison experiments. They score highly only when the `postmortem` profile includes investigation-time fields such as root-cause description, contributing factors, and full timeline summary. On `alert_only` and `early_incident`, they collapse to the majority-class baseline. This suggests the recurrent models are not exploiting the sparse keyword and category signals that TF-IDF captures directly.
+
+Full scorecards are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
 
 ## Project Status
 
-Portfolio-oriented ML project demonstrating lightweight incident classification, model comparison, and workflow-routing ergonomics on synthetic incident data. Production use would require real incident history, monitoring, drift detection, and human review gates.
+Portfolio-oriented ML project demonstrating lightweight incident classification, leakage-resistant evaluation, classical baseline comparison, and workflow-routing ergonomics on synthetic incident data. Production use would require real incident history, monitoring, drift detection, and human review gates.
 
 ## Dataset
 
@@ -66,7 +68,7 @@ uv sync
 
 ## Train Models
 
-Training defaults to the leakage-resistant `early_incident` feature profile:
+Neural training defaults to the leakage-resistant `early_incident` feature profile:
 
 ```bash
 uv run python -m incident_data_classification.train --model-type gru --feature-profile early_incident
@@ -78,25 +80,13 @@ Supported feature profiles:
 - `early_incident`: `alert_only` fields plus environment, cloud provider, region, and the first two pipe-delimited timeline events.
 - `postmortem`: richer comparison input that also includes timeline summary, root-cause description, and contributing factors.
 
-Train the reported Phase 1 GRU profile matrix:
+Train the primary Linear SVM model:
 
 ```bash
-for profile in alert_only early_incident postmortem; do
-  uv run python -m incident_data_classification.train --model-type gru --feature-profile "$profile" --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
-done
+uv run python -m incident_data_classification.train_baseline --model linear_svm --feature-profile alert_only --max-rows 15000
 ```
 
-Train the reported Phase 1 LSTM profile matrix:
-
-```bash
-for profile in alert_only early_incident postmortem; do
-  uv run python -m incident_data_classification.train --model-type lstm --feature-profile "$profile" --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
-done
-```
-
-Artifacts are written under `models/<model>/<feature_profile>/`, and reports are written as `reports/<model>_<feature_profile>_metrics.json`.
-
-Train TF-IDF baselines:
+Train all TF-IDF baselines:
 
 ```bash
 for model in logistic_regression linear_svm naive_bayes; do
@@ -108,7 +98,25 @@ done
 
 Baseline artifacts are written under `models/baselines/<model>/<feature_profile>/`, and reports are written as `reports/baseline_<model>_<feature_profile>_metrics.json`.
 
-Tuned runs used for the current reported scores:
+Train the legacy GRU profile matrix:
+
+```bash
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type gru --feature-profile "$profile" --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
+done
+```
+
+Train the legacy LSTM profile matrix:
+
+```bash
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type lstm --feature-profile "$profile" --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
+done
+```
+
+Neural artifacts are written under `models/<model>/<feature_profile>/`, and reports are written as `reports/<model>_<feature_profile>_metrics.json`.
+
+Legacy neural tuned runs used for comparison:
 
 ```bash
 uv run python -m incident_data_classification.train --model-type gru --feature-profile postmortem --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
@@ -190,14 +198,20 @@ uv run python -m incident_data_classification.predict --text -1
 Dataset downloader
   -> CSV validation
   -> non-leaking text feature construction
-  -> tokenizer + label encoder
-  -> GRU/LSTM classifier training
-  -> saved model artifacts
+  -> TF-IDF vectorizer + Linear SVM classifier
+  -> baseline model artifacts and evaluation reports
+  -> optional tokenizer + label encoder
+  -> legacy GRU/LSTM classifier training
   -> evaluation reports
   -> GRU workflow-routing CLI
 ```
 
-Model shape:
+Primary model shape:
+
+- `TfidfVectorizer` with word 1-2 grams
+- `LinearSVC` classification head
+
+Legacy neural model shape:
 
 - `Embedding`
 - `GRU` or `LSTM`
@@ -224,7 +238,7 @@ GitHub Actions runs `uv sync --locked` and `uv run pytest -q` on pushes, pull re
 - The dataset is synthetic, so high scores can reflect synthetic generation patterns rather than real-world RCA performance.
 - Workflow instructions demonstrate routing behavior. They do not execute remediation.
 - The interactive natural-language samples are intentionally less model-aligned than the training data and may skew toward common classes.
-- The LSTM clears 90% accuracy but has much weaker macro F1 than the GRU because it misses several smaller classes.
+- Legacy GRU/LSTM models do not perform well on incident-time profiles and are retained as comparison experiments.
 - No trained model binaries, raw data, or generated reports are committed.
 
 ## License
