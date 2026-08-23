@@ -36,6 +36,27 @@ The TF-IDF baselines show that the alert fields do contain strong synthetic lexi
 
 The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
 
+## Hard Evaluation Set
+
+The hard evaluation set is stored in `data/evaluation/hard_cases.json`. It contains 100 separately reviewed cases with ambiguity, conflicting evidence, unseen combinations, noisy wording, and missing details. These cases are not used for training or tuning.
+
+Linear SVM hard-set results:
+
+| Feature Profile | Cases | Accuracy | Macro F1 | Weighted F1 | Failures |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| alert_only | 100 | 0.060 | 0.051 | 0.048 | 94 |
+| early_incident | 100 | 0.090 | 0.063 | 0.057 | 91 |
+| postmortem | 100 | 0.080 | 0.071 | 0.069 | 92 |
+
+Example failure themes:
+
+- Conflicting deploy and provider evidence can be over-weighted toward deployment terms.
+- Security-abuse cases with traffic symptoms can be confused with overload or resource pressure.
+- Data-corruption cases described without exact training keywords are often missed.
+- Dependency and cascading failures are hard to separate when the text describes both an upstream issue and downstream retries.
+
+The gap between synthetic holdout performance and hard-set performance is the main Phase 3 finding: the TF-IDF + Linear SVM model is excellent at the synthetic dataset distribution, but it is not yet robust to realistic incident ambiguity.
+
 ## Postmortem Comparison
 
 | Model | Accuracy | Macro F1 | Weighted F1 | Best Epoch | Train Time | Notes |

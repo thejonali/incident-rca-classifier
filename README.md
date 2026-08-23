@@ -47,6 +47,12 @@ Dataset and generated files are intentionally ignored by Git:
 - `models/`
 - `reports/`
 
+The hard evaluation set is committed separately at:
+
+```text
+data/evaluation/hard_cases.json
+```
+
 Download only the dataset:
 
 ```bash
@@ -163,6 +169,26 @@ Phase 1 separates model input by incident stage so evaluation is less vulnerable
 The recurrent models collapse to the majority-class baseline on incident-time profiles, even after `early_incident` includes only the first two timeline events. The classical TF-IDF baselines perform far better on the same fields, which means the synthetic dataset exposes strong sparse lexical signals that GRU/LSTM training does not exploit well.
 
 `postmortem` remains useful as a leakage comparison because it includes fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries.
+
+## Hard Evaluation
+
+The hard set contains 100 curated cases with ambiguous symptoms, distractors, noisy descriptions, missing details, unseen combinations, and conflicting evidence. These cases are stored separately from the synthetic training CSV and are not used for training or tuning.
+
+Run the hard-set benchmark against the primary Linear SVM artifact:
+
+```bash
+uv run python -m incident_data_classification.evaluate_hard_cases --model linear_svm --feature-profile alert_only
+```
+
+Current Linear SVM hard-set results:
+
+| Feature Profile | Accuracy | Macro F1 | Weighted F1 |
+|---|---:|---:|---:|
+| alert_only | 0.060 | 0.051 | 0.048 |
+| early_incident | 0.090 | 0.063 | 0.057 |
+| postmortem | 0.080 | 0.071 | 0.069 |
+
+The sharp drop from synthetic holdout performance shows that the TF-IDF model is learning synthetic lexical patterns rather than robust incident reasoning. Phase 3 is therefore a stricter benchmark for future work: improvements should raise hard-set performance without using the hard cases for training.
 
 ## Run The Demo
 
