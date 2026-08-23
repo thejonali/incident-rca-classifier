@@ -5,7 +5,7 @@ PyTorch GRU/LSTM classifiers for mapping incident descriptions to root-cause cat
 ## What It Does
 
 - Downloads the synthetic RCA incident training CSV on first training run.
-- Builds a non-leaking incident text feature from operational fields.
+- Builds incident text from explicit feature profiles for alert-time, early-incident, and postmortem evaluation.
 - Trains GRU and LSTM classifiers on the same stratified train/validation/test split.
 - Evaluates accuracy, macro F1, weighted F1, and per-class precision/recall/F1.
 - Runs an interactive GRU workflow-routing demo for custom incidents.
@@ -65,11 +65,35 @@ uv sync
 
 ## Train Models
 
+Training defaults to the leakage-resistant `early_incident` feature profile:
+
+```bash
+uv run python -m incident_data_classification.train --model-type gru --feature-profile early_incident
+```
+
+Supported feature profiles:
+
+- `alert_only`: title, severity, affected services, primary affected service, and anomaly types.
+- `early_incident`: `alert_only` fields plus environment, cloud provider, and region.
+- `postmortem`: richer comparison input that also includes timeline summary, root-cause description, and contributing factors.
+
+Train the Phase 1 profile matrix:
+
+```bash
+for model in gru lstm; do
+  for profile in alert_only early_incident postmortem; do
+    uv run python -m incident_data_classification.train --model-type "$model" --feature-profile "$profile" --max-rows 15000
+  done
+done
+```
+
+Artifacts are written under `models/<model>/<feature_profile>/`, and reports are written as `reports/<model>_<feature_profile>_metrics.json`.
+
 Tuned runs used for the current reported scores:
 
 ```bash
-uv run python -m incident_data_classification.train --model-type gru --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
-uv run python -m incident_data_classification.train --model-type lstm --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
+uv run python -m incident_data_classification.train --model-type gru --feature-profile postmortem --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
+uv run python -m incident_data_classification.train --model-type lstm --feature-profile postmortem --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
 ```
 
 Training restores the best validation checkpoint before test evaluation. The default monitor is `val_macro_f1`.
@@ -90,12 +114,29 @@ uv run python -m incident_data_classification.evaluate
 
 Current saved metrics are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
 
+## Operational Evaluation
+
+Phase 1 separates model input by incident stage so evaluation is less vulnerable to post-investigation leakage.
+
+| Model | Feature Profile | Accuracy | Macro F1 | Weighted F1 |
+|---|---|---:|---:|---:|
+| GRU | postmortem | - | - | - |
+| GRU | early_incident | - | - | - |
+| GRU | alert_only | - | - | - |
+| LSTM | postmortem | - | - | - |
+| LSTM | early_incident | - | - | - |
+| LSTM | alert_only | - | - | - |
+
+Populate the table by training the profile matrix and running `uv run python -m incident_data_classification.evaluate`.
+
+`postmortem` scores may be higher because the model can see fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` are more realistic for live triage because they exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries. Lower scores in those profiles are expected and are more useful for estimating real incident-time decision support.
+
 ## Run The Demo
 
 Interactive GRU classifier:
 
 ```bash
-uv run python -m incident_data_classification.interactive_gru
+uv run python -m incident_data_classification.interactive_gru --feature-profile early_incident
 ```
 
 At the prompt:

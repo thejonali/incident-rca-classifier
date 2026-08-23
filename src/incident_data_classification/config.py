@@ -33,24 +33,66 @@ REQUIRED_COLUMNS = [
     "prevention_recommendation",
 ]
 
-INPUT_COLUMNS = [
-    "title",
-    "affected_services",
-    "primary_affected_service",
-    "anomaly_types_detected",
-    "severity",
-    "cloud_provider",
-    "region",
-    "environment",
-    "timeline_summary",
+FEATURE_PROFILE_ALERT_ONLY = "alert_only"
+FEATURE_PROFILE_EARLY_INCIDENT = "early_incident"
+FEATURE_PROFILE_POSTMORTEM = "postmortem"
+DEFAULT_FEATURE_PROFILE = FEATURE_PROFILE_EARLY_INCIDENT
+
+FEATURE_PROFILE_COLUMNS = {
+    FEATURE_PROFILE_ALERT_ONLY: [
+        "title",
+        "severity",
+        "affected_services",
+        "primary_affected_service",
+        "anomaly_types_detected",
+    ],
+    FEATURE_PROFILE_EARLY_INCIDENT: [
+        "title",
+        "severity",
+        "affected_services",
+        "primary_affected_service",
+        "anomaly_types_detected",
+        "environment",
+        "cloud_provider",
+        "region",
+    ],
+    FEATURE_PROFILE_POSTMORTEM: [
+        "title",
+        "affected_services",
+        "primary_affected_service",
+        "anomaly_types_detected",
+        "severity",
+        "cloud_provider",
+        "region",
+        "environment",
+        "timeline_summary",
+        "root_cause_description",
+        "contributing_factors",
+    ],
+}
+
+FEATURE_PROFILES = tuple(FEATURE_PROFILE_COLUMNS)
+
+# Backward-compatible alias for callers that expect a single configured input.
+INPUT_COLUMNS = FEATURE_PROFILE_COLUMNS[DEFAULT_FEATURE_PROFILE]
+
+INCIDENT_TIME_EXCLUDED_COLUMNS = {
     "root_cause_description",
     "contributing_factors",
-]
+    "timeline_summary",
+    "remediation_steps_taken",
+    "remediation_that_worked",
+    "post_mortem_summary",
+    "prevention_recommendation",
+}
 
 TARGET_COLUMN = "root_cause_category"
 
 LEAKY_COLUMNS = {
     "root_cause_category",
+    "root_cause_description",
+    "contributing_factors",
+    "timeline_summary",
     "remediation_steps_taken",
     "remediation_that_worked",
     "post_mortem_summary",

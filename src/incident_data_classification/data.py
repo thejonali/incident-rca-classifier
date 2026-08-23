@@ -7,7 +7,17 @@ from pathlib import Path
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-from .config import INPUT_COLUMNS, LEAKY_COLUMNS, RANDOM_SEED, REQUIRED_COLUMNS, TARGET_COLUMN
+from .config import (
+    DEFAULT_FEATURE_PROFILE,
+    FEATURE_PROFILE_POSTMORTEM,
+    FEATURE_PROFILE_COLUMNS,
+    INCIDENT_TIME_EXCLUDED_COLUMNS,
+    INPUT_COLUMNS,
+    LEAKY_COLUMNS,
+    RANDOM_SEED,
+    REQUIRED_COLUMNS,
+    TARGET_COLUMN,
+)
 from .tokenizer import TextTokenizer
 
 
@@ -46,19 +56,38 @@ def validate_columns(df: pd.DataFrame) -> None:
         raise ValueError(f"Input column list includes target-leaking columns: {leaking_inputs}")
 
 
-def build_input_text(row: pd.Series) -> str:
-    parts = [normalize_text(row[column]) for column in INPUT_COLUMNS]
+def get_feature_columns(feature_profile: str = DEFAULT_FEATURE_PROFILE) -> list[str]:
+    try:
+        columns = FEATURE_PROFILE_COLUMNS[feature_profile]
+    except KeyError as exc:
+        supported = ", ".join(sorted(FEATURE_PROFILE_COLUMNS))
+        raise ValueError(f"Unsupported feature profile {feature_profile!r}. Supported profiles: {supported}") from exc
+
+    if feature_profile != FEATURE_PROFILE_POSTMORTEM:
+        excluded_columns = [column for column in columns if column in INCIDENT_TIME_EXCLUDED_COLUMNS]
+        if excluded_columns:
+            raise ValueError(f"Incident-time profile {feature_profile!r} includes post-investigation columns: {excluded_columns}")
+
+    return list(columns)
+
+
+def build_input_text(row: pd.Series, feature_profile: str = DEFAULT_FEATURE_PROFILE) -> str:
+    parts = [normalize_text(row[column]) for column in get_feature_columns(feature_profile)]
     return " ".join(part for part in parts if part)
 
 
-def load_incidents(csv_path: Path, max_rows: int | None = None) -> pd.DataFrame:
+def load_incidents(
+    csv_path: Path,
+    max_rows: int | None = None,
+    feature_profile: str = DEFAULT_FEATURE_PROFILE,
+) -> pd.DataFrame:
     if not csv_path.exists():
         raise FileNotFoundError(f"Dataset not found: {csv_path}")
 
     df = pd.read_csv(csv_path)
     validate_columns(df)
     df = df.dropna(subset=[TARGET_COLUMN]).copy()
-    df["input_text"] = df.apply(build_input_text, axis=1)
+    df["input_text"] = df.apply(build_input_text, axis=1, feature_profile=feature_profile)
     df = df[df["input_text"].str.len() > 0].copy()
 
     if max_rows is not None and max_rows > 0 and len(df) > max_rows:

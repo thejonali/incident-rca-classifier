@@ -6,8 +6,8 @@ import random
 from importlib.resources import files
 from pathlib import Path
 
-from .config import DEFAULT_MODELS_DIR
-from .predict import predict_one
+from .config import DEFAULT_MODELS_DIR, FEATURE_PROFILES
+from .predict import predict_one, resolve_artifact_dir
 
 
 PROMPT = "Enter an issue description, -1 for a preconfigured sample, or X to exit: "
@@ -136,6 +136,12 @@ def get_workflow_instructions(label: str) -> list[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Interactive GRU incident classifier")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
+    parser.add_argument(
+        "--feature-profile",
+        choices=FEATURE_PROFILES,
+        default=None,
+        help="Feature profile artifact to load.",
+    )
     parser.add_argument("--text", type=str, default=None, help="Issue description. Use -1 for a random sample, X to exit.")
     parser.add_argument("--batch-count", type=int, default=0, help="Run this many curated batch samples and exit.")
     parser.add_argument("--sample-seed", type=int, default=None, help="Optional deterministic sample selector.")
@@ -217,7 +223,7 @@ def run_once(text: str, artifact_dir: Path, sample_seed: int | None = None, pref
 
 def main() -> None:
     args = parse_args()
-    artifact_dir = args.models_dir / "gru"
+    artifact_dir = resolve_artifact_dir(args.models_dir, "gru", args.feature_profile)
     if args.batch_count:
         run_batch(args.batch_count, artifact_dir, prefer_mps=args.prefer_mps)
         return

@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-from .config import DEFAULT_MODELS_DIR
+from .config import DEFAULT_FEATURE_PROFILE, DEFAULT_MODELS_DIR, FEATURE_PROFILES
 from .data import normalize_text
 from .labels import LabelEncoder
 from .model import RecurrentIncidentClassifier, get_device
@@ -19,6 +19,17 @@ SAMPLE_TEXT = (
     "after the nightly analytics job started. threshold alerts fired, customers are "
     "seeing slow checkout responses, and cpu is also elevated."
 )
+
+
+def resolve_artifact_dir(models_dir: Path, model_name: str, feature_profile: str | None = None) -> Path:
+    if feature_profile is None:
+        default_profile_dir = models_dir / model_name / DEFAULT_FEATURE_PROFILE
+        if default_profile_dir.exists():
+            return default_profile_dir
+        return models_dir / model_name
+
+    profile_dir = models_dir / model_name / feature_profile
+    return profile_dir
 
 
 def load_model(artifact_dir: Path, prefer_mps: bool) -> tuple[RecurrentIncidentClassifier, TextTokenizer, LabelEncoder, torch.device]:
@@ -83,6 +94,12 @@ def find_reference(artifact_dir: Path, label: str) -> dict | None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run GRU and LSTM incident predictions")
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
+    parser.add_argument(
+        "--feature-profile",
+        choices=FEATURE_PROFILES,
+        default=None,
+        help="Feature profile artifact to load.",
+    )
     parser.add_argument("--text", type=str, default=None, help="Incident text. Use -1 for built-in sample.")
     parser.add_argument("--prefer-mps", action="store_true", help="Use Apple MPS if available")
     return parser.parse_args()
@@ -98,7 +115,7 @@ def main() -> None:
         print(f"Using sample incident:\n{text}\n")
 
     for model_name in ["gru", "lstm"]:
-        artifact_dir = args.models_dir / model_name
+        artifact_dir = resolve_artifact_dir(args.models_dir, model_name, args.feature_profile)
         if not (artifact_dir / "model.pt").exists():
             print(f"{model_name.upper()} model not found at {artifact_dir}; train it first.")
             continue
@@ -117,4 +134,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -13,8 +13,15 @@ from sklearn.utils.class_weight import compute_class_weight
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from .config import DEFAULT_MODELS_DIR, DEFAULT_REPORTS_DIR, RANDOM_SEED, TARGET_COLUMN
-from .data import load_incidents, prepare_sequences, split_dataset
+from .config import (
+    DEFAULT_FEATURE_PROFILE,
+    DEFAULT_MODELS_DIR,
+    DEFAULT_REPORTS_DIR,
+    FEATURE_PROFILES,
+    RANDOM_SEED,
+    TARGET_COLUMN,
+)
+from .data import get_feature_columns, load_incidents, prepare_sequences, split_dataset
 from .dataset import resolve_incidents_csv
 from .labels import LabelEncoder
 from .model import RecurrentIncidentClassifier, get_device
@@ -78,6 +85,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--csv", type=Path, default=None, help="Optional local CSV path. Defaults to data/raw.")
     parser.add_argument("--force-download", action="store_true", help="Redownload the local CSV before training.")
     parser.add_argument("--model-type", choices=["gru", "lstm"], required=True)
+    parser.add_argument(
+        "--feature-profile",
+        choices=FEATURE_PROFILES,
+        default=DEFAULT_FEATURE_PROFILE,
+        help="Input field profile used to build incident text.",
+    )
     parser.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
     parser.add_argument("--reports-dir", type=Path, default=DEFAULT_REPORTS_DIR)
     parser.add_argument("--max-rows", type=int, default=3000)
@@ -130,8 +143,9 @@ def main() -> None:
 
     csv_path = resolve_incidents_csv(args.csv, force_download=args.force_download)
     print(f"Using dataset: {csv_path}")
+    print(f"Using feature profile: {args.feature_profile}")
 
-    df = load_incidents(csv_path, max_rows=args.max_rows)
+    df = load_incidents(csv_path, max_rows=args.max_rows, feature_profile=args.feature_profile)
     splits = split_dataset(df)
     tokenizer, sequences = prepare_sequences(splits, vocab_size=args.vocab_size, max_length=args.max_length)
     label_encoder = LabelEncoder.fit(splits.y_train)
@@ -208,6 +222,8 @@ def main() -> None:
     labels = [label for label, _ in sorted(label_encoder.label_to_id.items(), key=lambda item: item[1])]
     metrics = {
         "model_type": args.model_type,
+        "feature_profile": args.feature_profile,
+        "feature_columns": get_feature_columns(args.feature_profile),
         "rows_used": int(len(df)),
         "classes": labels,
         "class_distribution": df[TARGET_COLUMN].value_counts().sort_index().to_dict(),
@@ -240,12 +256,13 @@ def main() -> None:
         },
     }
 
-    artifact_dir = args.models_dir / args.model_type
+    artifact_dir = args.models_dir / args.model_type / args.feature_profile
     artifact_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
         {
             "model_state_dict": model.cpu().state_dict(),
             "model_type": args.model_type,
+            "feature_profile": args.feature_profile,
             "vocab_size": tokenizer.size,
             "num_classes": label_encoder.size,
             "embedding_dim": args.embedding_dim,
@@ -256,7 +273,7 @@ def main() -> None:
     tokenizer.save(artifact_dir / "tokenizer.json")
     label_encoder.save(artifact_dir / "label_encoder.json")
     save_json(artifact_dir / "metrics.json", metrics)
-    save_json(args.reports_dir / f"{args.model_type}_metrics.json", metrics)
+    save_json(args.reports_dir / f"{args.model_type}_{args.feature_profile}_metrics.json", metrics)
 
     reference_columns = [
         "incident_id",

@@ -1,8 +1,16 @@
 import pandas as pd
 import torch
 
-from incident_data_classification.config import INPUT_COLUMNS, LEAKY_COLUMNS
-from incident_data_classification.data import build_input_text, validate_columns
+from incident_data_classification.config import (
+    FEATURE_PROFILE_ALERT_ONLY,
+    FEATURE_PROFILE_EARLY_INCIDENT,
+    FEATURE_PROFILE_POSTMORTEM,
+    FEATURE_PROFILE_COLUMNS,
+    INCIDENT_TIME_EXCLUDED_COLUMNS,
+    INPUT_COLUMNS,
+    LEAKY_COLUMNS,
+)
+from incident_data_classification.data import build_input_text, get_feature_columns, validate_columns
 from incident_data_classification.labels import LabelEncoder
 from incident_data_classification.train import is_improvement, make_class_weight_tensor
 
@@ -11,8 +19,8 @@ def test_input_columns_exclude_leaky_fields():
     assert not (set(INPUT_COLUMNS) & LEAKY_COLUMNS)
 
 
-def test_build_input_text_normalizes_separators():
-    row = pd.Series(
+def make_incident_row() -> pd.Series:
+    return pd.Series(
         {
             "title": "CPU Spike Detected",
             "affected_services": "cache-service",
@@ -28,11 +36,49 @@ def test_build_input_text_normalizes_separators():
         }
     )
 
+
+def test_incident_time_profiles_exclude_post_investigation_fields():
+    for feature_profile in [FEATURE_PROFILE_ALERT_ONLY, FEATURE_PROFILE_EARLY_INCIDENT]:
+        assert not (set(FEATURE_PROFILE_COLUMNS[feature_profile]) & INCIDENT_TIME_EXCLUDED_COLUMNS)
+
+
+def test_postmortem_profile_keeps_richer_comparison_fields():
+    columns = set(get_feature_columns(FEATURE_PROFILE_POSTMORTEM))
+
+    assert "timeline_summary" in columns
+    assert "root_cause_description" in columns
+    assert "contributing_factors" in columns
+
+
+def test_build_input_text_normalizes_separators():
+    row = make_incident_row()
+
     text = build_input_text(row)
 
     assert "cpu spike" in text
     assert "cpu spike memory spike" in text
     assert "|" not in text
+
+
+def test_early_incident_input_text_excludes_investigation_only_details():
+    row = make_incident_row()
+
+    text = build_input_text(row, feature_profile=FEATURE_PROFILE_EARLY_INCIDENT)
+
+    assert "gcp" in text
+    assert "us-central1" in text
+    assert "disk i/o saturation" not in text
+    assert "monitoring gap" not in text
+    assert "t+0m" not in text
+
+
+def test_postmortem_input_text_includes_investigation_details():
+    row = make_incident_row()
+
+    text = build_input_text(row, feature_profile=FEATURE_PROFILE_POSTMORTEM)
+
+    assert "disk i/o saturation" in text
+    assert "monitoring gap capacity planning" in text
 
 
 def test_label_encoder_round_trip():
