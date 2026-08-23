@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 
 from incident_data_classification.config import (
+    EARLY_TIMELINE_COLUMN,
     FEATURE_PROFILE_ALERT_ONLY,
     FEATURE_PROFILE_EARLY_INCIDENT,
     FEATURE_PROFILE_POSTMORTEM,
@@ -10,7 +11,7 @@ from incident_data_classification.config import (
     INPUT_COLUMNS,
     LEAKY_COLUMNS,
 )
-from incident_data_classification.data import build_input_text, get_feature_columns, validate_columns
+from incident_data_classification.data import build_input_text, extract_early_timeline, get_feature_columns, validate_columns
 from incident_data_classification.labels import LabelEncoder
 from incident_data_classification.train import is_improvement, make_class_weight_tensor
 
@@ -30,7 +31,11 @@ def make_incident_row() -> pd.Series:
             "cloud_provider": "gcp",
             "region": "us-central1",
             "environment": "production",
-            "timeline_summary": "t+0m: CPU begins",
+            "timeline_summary": (
+                "t+0m: CPU begins on cache-service|t+6m: Detected via threshold_alert|"
+                "t+12m: RCA investigation begins|t+45m: Mitigation applied|"
+                "t+80m: Service fully recovered"
+            ),
             "root_cause_description": "Disk I/O saturation",
             "contributing_factors": "Monitoring gap|Capacity planning",
         }
@@ -40,6 +45,11 @@ def make_incident_row() -> pd.Series:
 def test_incident_time_profiles_exclude_post_investigation_fields():
     for feature_profile in [FEATURE_PROFILE_ALERT_ONLY, FEATURE_PROFILE_EARLY_INCIDENT]:
         assert not (set(FEATURE_PROFILE_COLUMNS[feature_profile]) & INCIDENT_TIME_EXCLUDED_COLUMNS)
+
+
+def test_early_incident_profile_uses_derived_timeline_excerpt():
+    assert EARLY_TIMELINE_COLUMN in get_feature_columns(FEATURE_PROFILE_EARLY_INCIDENT)
+    assert EARLY_TIMELINE_COLUMN not in INCIDENT_TIME_EXCLUDED_COLUMNS
 
 
 def test_postmortem_profile_keeps_richer_comparison_fields():
@@ -60,6 +70,15 @@ def test_build_input_text_normalizes_separators():
     assert "|" not in text
 
 
+def test_extract_early_timeline_uses_first_pipe_delimited_events():
+    text = extract_early_timeline(
+        "t+0m: CPU begins|t+6m: Detected via threshold_alert|t+12m: RCA investigation begins",
+        event_count=2,
+    )
+
+    assert text == "t+0m: CPU begins t+6m: Detected via threshold_alert"
+
+
 def test_early_incident_input_text_excludes_investigation_only_details():
     row = make_incident_row()
 
@@ -67,9 +86,13 @@ def test_early_incident_input_text_excludes_investigation_only_details():
 
     assert "gcp" in text
     assert "us-central1" in text
+    assert "t+0m: cpu begins on cache-service" in text
+    assert "t+6m: detected via threshold alert" in text
+    assert "rca investigation" not in text
+    assert "mitigation applied" not in text
+    assert "service fully recovered" not in text
     assert "disk i/o saturation" not in text
     assert "monitoring gap" not in text
-    assert "t+0m" not in text
 
 
 def test_postmortem_input_text_includes_investigation_details():
@@ -77,6 +100,8 @@ def test_postmortem_input_text_includes_investigation_details():
 
     text = build_input_text(row, feature_profile=FEATURE_PROFILE_POSTMORTEM)
 
+    assert "rca investigation begins" in text
+    assert "mitigation applied" in text
     assert "disk i/o saturation" in text
     assert "monitoring gap capacity planning" in text
 

@@ -8,7 +8,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from .config import (
+    DERIVED_COLUMNS,
     DEFAULT_FEATURE_PROFILE,
+    EARLY_TIMELINE_COLUMN,
+    EARLY_TIMELINE_EVENT_COUNT,
     FEATURE_PROFILE_POSTMORTEM,
     FEATURE_PROFILE_COLUMNS,
     INCIDENT_TIME_EXCLUDED_COLUMNS,
@@ -22,6 +25,7 @@ from .tokenizer import TextTokenizer
 
 
 _WHITESPACE_RE = re.compile(r"\s+")
+_TIMELINE_EVENT_RE = re.compile(r"[|\r\n]+")
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,14 @@ def normalize_text(value: object) -> str:
     text = text.replace("—", " ")
     text = text.lower()
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def extract_early_timeline(value: object, event_count: int = EARLY_TIMELINE_EVENT_COUNT) -> str:
+    if event_count <= 0 or pd.isna(value):
+        return ""
+
+    events = [event.strip() for event in _TIMELINE_EVENT_RE.split(str(value)) if event.strip()]
+    return " ".join(events[:event_count])
 
 
 def validate_columns(df: pd.DataFrame) -> None:
@@ -71,8 +83,14 @@ def get_feature_columns(feature_profile: str = DEFAULT_FEATURE_PROFILE) -> list[
     return list(columns)
 
 
+def resolve_feature_value(row: pd.Series, column: str) -> object:
+    if column == EARLY_TIMELINE_COLUMN:
+        return extract_early_timeline(row.get("timeline_summary", ""))
+    return row[column]
+
+
 def build_input_text(row: pd.Series, feature_profile: str = DEFAULT_FEATURE_PROFILE) -> str:
-    parts = [normalize_text(row[column]) for column in get_feature_columns(feature_profile)]
+    parts = [normalize_text(resolve_feature_value(row, column)) for column in get_feature_columns(feature_profile)]
     return " ".join(part for part in parts if part)
 
 
@@ -87,6 +105,9 @@ def load_incidents(
     df = pd.read_csv(csv_path)
     validate_columns(df)
     df = df.dropna(subset=[TARGET_COLUMN]).copy()
+    for column in get_feature_columns(feature_profile):
+        if column in DERIVED_COLUMNS:
+            df[column] = df.apply(resolve_feature_value, axis=1, column=column)
     df["input_text"] = df.apply(build_input_text, axis=1, feature_profile=feature_profile)
     df = df[df["input_text"].str.len() > 0].copy()
 

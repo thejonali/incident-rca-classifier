@@ -37,6 +37,8 @@ FEATURE_PROFILE_ALERT_ONLY = "alert_only"
 FEATURE_PROFILE_EARLY_INCIDENT = "early_incident"
 FEATURE_PROFILE_POSTMORTEM = "postmortem"
 DEFAULT_FEATURE_PROFILE = FEATURE_PROFILE_EARLY_INCIDENT
+EARLY_TIMELINE_COLUMN = "early_timeline_summary"
+EARLY_TIMELINE_EVENT_COUNT = 2
 
 FEATURE_PROFILE_COLUMNS = {
     FEATURE_PROFILE_ALERT_ONLY: [
@@ -55,6 +57,7 @@ FEATURE_PROFILE_COLUMNS = {
         "environment",
         "cloud_provider",
         "region",
+        EARLY_TIMELINE_COLUMN,
     ],
     FEATURE_PROFILE_POSTMORTEM: [
         "title",
@@ -84,6 +87,10 @@ INCIDENT_TIME_EXCLUDED_COLUMNS = {
     "remediation_that_worked",
     "post_mortem_summary",
     "prevention_recommendation",
+}
+
+DERIVED_COLUMNS = {
+    EARLY_TIMELINE_COLUMN,
 }
 
 TARGET_COLUMN = "root_cause_category"

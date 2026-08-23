@@ -7,6 +7,7 @@ PyTorch GRU/LSTM classifiers for mapping incident descriptions to root-cause cat
 - Downloads the synthetic RCA incident training CSV on first training run.
 - Builds incident text from explicit feature profiles for alert-time, early-incident, and postmortem evaluation.
 - Trains GRU and LSTM classifiers on the same stratified train/validation/test split.
+- Trains TF-IDF classical baselines for checking whether neural sequence models add value.
 - Evaluates accuracy, macro F1, weighted F1, and per-class precision/recall/F1.
 - Runs an interactive GRU workflow-routing demo for custom incidents.
 - Runs a curated 10-sample batch demo that exercises mostly different classifications.
@@ -74,7 +75,7 @@ uv run python -m incident_data_classification.train --model-type gru --feature-p
 Supported feature profiles:
 
 - `alert_only`: title, severity, affected services, primary affected service, and anomaly types.
-- `early_incident`: `alert_only` fields plus environment, cloud provider, and region.
+- `early_incident`: `alert_only` fields plus environment, cloud provider, region, and the first two pipe-delimited timeline events.
 - `postmortem`: richer comparison input that also includes timeline summary, root-cause description, and contributing factors.
 
 Train the reported Phase 1 GRU profile matrix:
@@ -94,6 +95,18 @@ done
 ```
 
 Artifacts are written under `models/<model>/<feature_profile>/`, and reports are written as `reports/<model>_<feature_profile>_metrics.json`.
+
+Train TF-IDF baselines:
+
+```bash
+for model in logistic_regression linear_svm naive_bayes; do
+  for profile in alert_only early_incident postmortem; do
+    uv run python -m incident_data_classification.train_baseline --model "$model" --feature-profile "$profile" --max-rows 15000
+  done
+done
+```
+
+Baseline artifacts are written under `models/baselines/<model>/<feature_profile>/`, and reports are written as `reports/baseline_<model>_<feature_profile>_metrics.json`.
 
 Tuned runs used for the current reported scores:
 
@@ -132,8 +145,16 @@ Phase 1 separates model input by incident stage so evaluation is less vulnerable
 | LSTM | postmortem | 0.922 | 0.721 | 0.884 |
 | LSTM | early_incident | 0.284 | 0.037 | 0.126 |
 | LSTM | alert_only | 0.284 | 0.037 | 0.126 |
+| Linear SVM | postmortem | 0.992 | 0.986 | 0.992 |
+| Linear SVM | early_incident | 0.996 | 0.993 | 0.996 |
+| Linear SVM | alert_only | 0.997 | 0.994 | 0.997 |
+| Logistic Regression | postmortem | 0.944 | 0.905 | 0.947 |
+| Logistic Regression | early_incident | 0.969 | 0.956 | 0.972 |
+| Logistic Regression | alert_only | 0.963 | 0.956 | 0.968 |
 
-The incident-time profiles collapse to the majority-class baseline on this synthetic dataset. `postmortem` is much higher because the model can see fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` are more realistic for live triage because they exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries. These lower scores are more useful for estimating real incident-time decision support.
+The recurrent models collapse to the majority-class baseline on incident-time profiles, even after `early_incident` includes only the first two timeline events. The classical TF-IDF baselines perform far better on the same fields, which means the synthetic dataset exposes strong sparse lexical signals that GRU/LSTM training does not exploit well.
+
+`postmortem` remains useful as a leakage comparison because it includes fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries.
 
 ## Run The Demo
 
