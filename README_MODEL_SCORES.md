@@ -36,6 +36,29 @@ The TF-IDF baselines show that the alert fields do contain strong synthetic lexi
 
 The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
 
+## Confidence Calibration
+
+Phase 4 measures confidence quality for the TF-IDF baseline path. The values below use the saved Linear SVM artifacts, fit one temperature on the validation split, and report calibration metrics on the held-out test split.
+
+| Model | Feature Profile | Temperature | Raw ECE | Calibrated ECE | Raw Brier | Calibrated Brier | Review Threshold | Coverage | Accepted Accuracy |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Linear SVM | alert_only | 0.266 | 0.540 | 0.003 | 0.329 | 0.007 | 0.992 | 0.905 | 0.998 |
+| Linear SVM | early_incident | 0.270 | 0.525 | 0.003 | 0.313 | 0.007 | 0.991 | 0.905 | 0.999 |
+| Linear SVM | postmortem | 0.259 | 0.560 | 0.005 | 0.359 | 0.013 | 0.990 | 0.896 | 0.998 |
+
+The raw Linear SVM confidence here is produced by applying softmax to uncalibrated decision margins. That is useful for ranking classes but not suitable as an operational confidence estimate. Temperature scaling sharply reduces ECE and Brier score on this synthetic split while preserving the predicted class, because dividing all class scores by a positive temperature does not change the argmax.
+
+The review threshold is selected from validation-set calibrated confidence at a 90% target coverage. On the test split, the accepted subset remains near that coverage and has slightly higher accuracy than the full set. This threshold is an experiment setting, not a permanent production constant.
+
+Risk/coverage curve for Linear SVM `alert_only`:
+
+| Target Coverage | Actual Coverage | Accepted Accuracy | Rejected Incidents |
+| ---: | ---: | ---: | ---: |
+| 1.00 | 1.000 | 0.997 | 0 |
+| 0.90 | 0.900 | 0.998 | 225 |
+| 0.80 | 0.800 | 0.999 | 450 |
+| 0.70 | 0.700 | 0.999 | 675 |
+
 ## Hard Evaluation Sets
 
 Two hard benchmarks are tracked separately:
@@ -180,6 +203,14 @@ Evaluate the hard benchmarks:
 ```bash
 uv run python -m incident_data_classification.evaluate_hard_cases --cases data/evaluation/hard_cases.json --model all --feature-profile alert_only
 uv run python -m incident_data_classification.evaluate_hard_cases --cases data/evaluation/real_world_hard_cases.json --model all --feature-profile alert_only
+```
+
+Evaluate Linear SVM confidence calibration:
+
+```bash
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.evaluate_confidence --model linear_svm --feature-profile "$profile" --max-rows 15000
+done
 ```
 
 Train the TF-IDF baselines:

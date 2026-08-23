@@ -148,6 +148,32 @@ uv run python -m incident_data_classification.evaluate
 
 Current saved metrics are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
 
+## Confidence Calibration
+
+Phase 4 adds a confidence layer for the TF-IDF baseline classifiers. For Linear SVM, raw decision margins are converted into probabilities, temperature scaling is fit on the validation split only, and calibrated confidence is evaluated on the held-out test split. A validation-selected threshold can then mark low-confidence predictions for human review.
+
+Run calibration for the primary model:
+
+```bash
+uv run python -m incident_data_classification.evaluate_confidence --model linear_svm --feature-profile alert_only --max-rows 15000
+```
+
+Run an abstaining JSON prediction:
+
+```bash
+uv run python -m incident_data_classification.predict_baseline --model linear_svm --feature-profile alert_only --text -1
+```
+
+Current Linear SVM calibration results:
+
+| Feature Profile | Raw ECE | Calibrated ECE | Raw Brier | Calibrated Brier | Review Threshold | Accepted Accuracy | Coverage |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| alert_only | 0.540 | 0.003 | 0.329 | 0.007 | 0.992 | 0.998 | 0.905 |
+| early_incident | 0.525 | 0.003 | 0.313 | 0.007 | 0.991 | 0.999 | 0.905 |
+| postmortem | 0.560 | 0.005 | 0.359 | 0.013 | 0.990 | 0.998 | 0.896 |
+
+These confidence scores do not make the classifier more accurate by themselves. They make the model easier to operate: high-confidence predictions can be handled automatically, while predictions below the validation-selected threshold can be routed to a human reviewer. Reliability diagrams are generated under `reports/` during calibration evaluation.
+
 ## Operational Evaluation
 
 Phase 1 separates model input by incident stage so evaluation is less vulnerable to post-investigation leakage.
