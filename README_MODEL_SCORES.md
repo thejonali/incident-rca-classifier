@@ -8,16 +8,31 @@ Run configuration:
 - Test rows: 2,250
 - Split strategy: stratified train/validation/test split
 - Device: CPU
-- Saved artifacts: `models/gru/` and `models/lstm/`
+- Saved artifacts: `models/<model>/<feature_profile>/`
 
-## Overall Comparison
+## Feature Profile Matrix
+
+| Model | Feature Profile | Accuracy | Macro F1 | Weighted F1 | Best Epoch | Train Time | Notes |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| GRU | alert_only | 0.284 | 0.037 | 0.126 | 4 | 54.9s | Balanced class weights |
+| GRU | early_incident | 0.284 | 0.037 | 0.126 | 1 | 39.2s | Balanced class weights |
+| GRU | postmortem | 0.996 | 0.993 | 0.996 | 18 | 124.6s | Balanced class weights |
+| LSTM | alert_only | 0.284 | 0.037 | 0.126 | 1 | 22.6s | Existing tuned LSTM settings |
+| LSTM | early_incident | 0.284 | 0.037 | 0.126 | 1 | 24.1s | Existing tuned LSTM settings |
+| LSTM | postmortem | 0.922 | 0.721 | 0.884 | 1 | 23.1s | Existing tuned LSTM settings |
+
+The incident-time profiles collapse to the majority-class baseline. `RESOURCE_EXHAUSTION` accounts for 640 of 2,250 test rows, so always predicting that class yields 0.284 accuracy and very low macro F1. Adding environment, cloud provider, and region in `early_incident` did not improve either neural model on this synthetic dataset.
+
+The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
+
+## Postmortem Comparison
 
 | Model | Accuracy | Macro F1 | Weighted F1 | Best Epoch | Train Time | Notes |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| GRU | 0.996 | 0.993 | 0.996 | 18 | 159.7s | Balanced class weights, 20 epochs |
-| LSTM | 0.922 | 0.721 | 0.884 | 1 | 23.2s | Smaller LSTM tuned for accuracy |
+| GRU | 0.996 | 0.993 | 0.996 | 18 | 124.6s | Balanced class weights, 20 epochs |
+| LSTM | 0.922 | 0.721 | 0.884 | 1 | 23.1s | Smaller LSTM tuned for accuracy |
 
-The GRU is the stronger classifier on this dataset. It clears 90% on accuracy, macro F1, and weighted F1. The LSTM clears 90% accuracy, but macro F1 remains weak because it still misses several smaller classes.
+The GRU is the stronger postmortem classifier on this dataset. It clears 90% on accuracy, macro F1, and weighted F1. The LSTM clears 90% accuracy, but macro F1 remains weak because it still misses several smaller classes.
 
 ## GRU Per-Class Scores
 
@@ -55,7 +70,9 @@ The GRU is the stronger classifier on this dataset. It clears 90% on accuracy, m
 
 ## Current Read
 
-The class-weighted GRU is the strongest classifier in this repository. It fixed the previously missed minority categories and performs above 95% F1 for every class in this synthetic test split.
+The class-weighted GRU is the strongest classifier in this repository when post-investigation fields are available. It fixed the previously missed minority categories and performs above 95% F1 for every class in this synthetic test split.
+
+The incident-time profiles are the more realistic live-triage benchmarks, and they currently show that the available alert metadata is not enough to infer root cause. This is a dataset limitation, not a neural tuning success case. A targeted class-weighted LSTM postmortem run was also tested and did not improve macro F1.
 
 The LSTM reaches 92.2% accuracy, but that number is inflated by strong performance on the common categories. It still fails to identify:
 
@@ -65,10 +82,24 @@ The LSTM reaches 92.2% accuracy, but that number is inflated by strong performan
 
 ## Commands
 
-Recreate the current tuned runs:
+Recreate the reported GRU profile matrix:
 
 ```bash
-uv run python -m incident_data_classification.train --model-type gru --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
-uv run python -m incident_data_classification.train --model-type lstm --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type gru --feature-profile "$profile" --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
+done
+```
+
+Recreate the reported LSTM profile matrix:
+
+```bash
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type lstm --feature-profile "$profile" --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
+done
+```
+
+Compare saved results:
+
+```bash
 uv run python -m incident_data_classification.evaluate
 ```

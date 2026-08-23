@@ -13,12 +13,12 @@ PyTorch GRU/LSTM classifiers for mapping incident descriptions to root-cause cat
 
 ## GRU Highlights
 
-The tuned GRU is the strongest model in the project on the current synthetic holdout split:
+The tuned GRU is the strongest model in the project on the postmortem synthetic holdout split:
 
 - 99.6% accuracy, 99.3% macro F1, and 99.6% weighted F1 across 2,250 test rows.
 - Above 95% F1 for every root-cause category.
 - Balanced class weights improved minority-class performance across categories such as `DATA_CORRUPTION`, `SCHEDULED_JOB_FAILURE`, and `THIRD_PARTY_FAILURE`.
-- Trained in about 160 seconds on CPU with `embedding_dim=96`, `hidden_dim=96`, and `dropout=0.25`.
+- Trained in about 125 seconds on CPU with `embedding_dim=96`, `hidden_dim=96`, and `dropout=0.25`.
 
 Full GRU and LSTM scorecards are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
 
@@ -77,13 +77,19 @@ Supported feature profiles:
 - `early_incident`: `alert_only` fields plus environment, cloud provider, and region.
 - `postmortem`: richer comparison input that also includes timeline summary, root-cause description, and contributing factors.
 
-Train the Phase 1 profile matrix:
+Train the reported Phase 1 GRU profile matrix:
 
 ```bash
-for model in gru lstm; do
-  for profile in alert_only early_incident postmortem; do
-    uv run python -m incident_data_classification.train --model-type "$model" --feature-profile "$profile" --max-rows 15000
-  done
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type gru --feature-profile "$profile" --max-rows 15000 --epochs 20 --batch-size 64 --vocab-size 12000 --max-length 128 --embedding-dim 96 --hidden-dim 96 --class-weights balanced --patience 5
+done
+```
+
+Train the reported Phase 1 LSTM profile matrix:
+
+```bash
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train --model-type lstm --feature-profile "$profile" --max-rows 15000 --epochs 12 --batch-size 64 --vocab-size 10000 --max-length 96 --embedding-dim 64 --hidden-dim 64 --learning-rate 0.003 --patience 4
 done
 ```
 
@@ -106,7 +112,7 @@ uv run python -m incident_data_classification.train --model-type gru --max-rows 
 
 ## Evaluate
 
-Train the models first so `models/gru/` and `models/lstm/` exist locally:
+Train the profile matrix first so `models/<model>/<feature_profile>/` exists locally:
 
 ```bash
 uv run python -m incident_data_classification.evaluate
@@ -120,16 +126,14 @@ Phase 1 separates model input by incident stage so evaluation is less vulnerable
 
 | Model | Feature Profile | Accuracy | Macro F1 | Weighted F1 |
 |---|---|---:|---:|---:|
-| GRU | postmortem | - | - | - |
-| GRU | early_incident | - | - | - |
-| GRU | alert_only | - | - | - |
-| LSTM | postmortem | - | - | - |
-| LSTM | early_incident | - | - | - |
-| LSTM | alert_only | - | - | - |
+| GRU | postmortem | 0.996 | 0.993 | 0.996 |
+| GRU | early_incident | 0.284 | 0.037 | 0.126 |
+| GRU | alert_only | 0.284 | 0.037 | 0.126 |
+| LSTM | postmortem | 0.922 | 0.721 | 0.884 |
+| LSTM | early_incident | 0.284 | 0.037 | 0.126 |
+| LSTM | alert_only | 0.284 | 0.037 | 0.126 |
 
-Populate the table by training the profile matrix and running `uv run python -m incident_data_classification.evaluate`.
-
-`postmortem` scores may be higher because the model can see fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` are more realistic for live triage because they exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries. Lower scores in those profiles are expected and are more useful for estimating real incident-time decision support.
+The incident-time profiles collapse to the majority-class baseline on this synthetic dataset. `postmortem` is much higher because the model can see fields that often encode the answer after investigation, such as root-cause description and contributing factors. `alert_only` and `early_incident` are more realistic for live triage because they exclude root-cause descriptions, contributing factors, remediation details, prevention recommendations, and full timeline summaries. These lower scores are more useful for estimating real incident-time decision support.
 
 ## Run The Demo
 
