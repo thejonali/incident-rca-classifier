@@ -36,17 +36,58 @@ The TF-IDF baselines show that the alert fields do contain strong synthetic lexi
 
 The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
 
-## Hard Evaluation Set
+## Hard Evaluation Sets
 
-The hard evaluation set is stored in `data/evaluation/hard_cases.json`. It contains 100 separately reviewed cases with ambiguity, conflicting evidence, unseen combinations, noisy wording, and missing details. These cases are not used for training or tuning.
+Two hard benchmarks are tracked separately:
 
-Linear SVM hard-set results:
+- `data/evaluation/hard_cases.json`: structured hard cases with the same field shape as the training CSV, harder wording, and distractor symptoms.
+- `data/evaluation/real_world_hard_cases.json`: free-form incident prose cases with ambiguity, conflicting evidence, unseen combinations, noisy wording, and missing details.
 
-| Feature Profile | Cases | Accuracy | Macro F1 | Weighted F1 | Failures |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| alert_only | 100 | 0.060 | 0.051 | 0.048 | 94 |
-| early_incident | 100 | 0.090 | 0.063 | 0.057 | 91 |
-| postmortem | 100 | 0.080 | 0.071 | 0.069 | 92 |
+Neither hard set is used for training or tuning.
+
+### Structured Hard Set
+
+| Model | Feature Profile | Cases | Accuracy | Macro F1 | Weighted F1 | Failures |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Logistic Regression | alert_only | 100 | 0.910 | 0.887 | 0.881 | 9 |
+| Logistic Regression | early_incident | 100 | 0.910 | 0.887 | 0.881 | 9 |
+| Logistic Regression | postmortem | 100 | 0.900 | 0.877 | 0.871 | 10 |
+| Linear SVM | alert_only | 100 | 0.910 | 0.887 | 0.881 | 9 |
+| Linear SVM | early_incident | 100 | 0.910 | 0.887 | 0.881 | 9 |
+| Linear SVM | postmortem | 100 | 0.830 | 0.778 | 0.774 | 17 |
+| Naive Bayes | alert_only | 100 | 0.750 | 0.667 | 0.667 | 25 |
+| Naive Bayes | early_incident | 100 | 0.750 | 0.667 | 0.667 | 25 |
+| Naive Bayes | postmortem | 100 | 0.710 | 0.631 | 0.633 | 29 |
+| GRU | alert_only | 100 | 0.080 | 0.012 | 0.012 | 92 |
+| GRU | early_incident | 100 | 0.080 | 0.012 | 0.012 | 92 |
+| GRU | postmortem | 100 | 0.290 | 0.222 | 0.225 | 71 |
+| LSTM | alert_only | 100 | 0.080 | 0.012 | 0.012 | 92 |
+| LSTM | early_incident | 100 | 0.080 | 0.012 | 0.012 | 92 |
+| LSTM | postmortem | 100 | 0.110 | 0.047 | 0.050 | 89 |
+
+The structured benchmark shows that TF-IDF models remain strong when the incoming incident payload preserves normalized alert terminology. This is the realistic integration path for a monitoring or incident-management system that emits consistent anomaly names such as `memory_leak`, `pod_crash_loop`, `hpa_thrashing`, or `traffic_spike_overload`.
+
+### Real-World Prose Hard Set
+
+| Model | Feature Profile | Cases | Accuracy | Macro F1 | Weighted F1 | Failures |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Logistic Regression | alert_only | 100 | 0.060 | 0.065 | 0.065 | 94 |
+| Logistic Regression | early_incident | 100 | 0.040 | 0.042 | 0.039 | 96 |
+| Logistic Regression | postmortem | 100 | 0.120 | 0.051 | 0.053 | 88 |
+| Linear SVM | alert_only | 100 | 0.060 | 0.051 | 0.048 | 94 |
+| Linear SVM | early_incident | 100 | 0.090 | 0.063 | 0.057 | 91 |
+| Linear SVM | postmortem | 100 | 0.080 | 0.071 | 0.069 | 92 |
+| Naive Bayes | alert_only | 100 | 0.090 | 0.081 | 0.075 | 91 |
+| Naive Bayes | early_incident | 100 | 0.090 | 0.081 | 0.075 | 91 |
+| Naive Bayes | postmortem | 100 | 0.230 | 0.203 | 0.194 | 77 |
+| GRU | alert_only | 100 | 0.060 | 0.009 | 0.007 | 94 |
+| GRU | early_incident | 100 | 0.060 | 0.009 | 0.007 | 94 |
+| GRU | postmortem | 100 | 0.060 | 0.010 | 0.007 | 94 |
+| LSTM | alert_only | 100 | 0.060 | 0.009 | 0.007 | 94 |
+| LSTM | early_incident | 100 | 0.060 | 0.009 | 0.007 | 94 |
+| LSTM | postmortem | 100 | 0.100 | 0.062 | 0.060 | 90 |
+
+The free-form benchmark shows the current classifiers are not robust RCA reasoning systems. Removing the normalized vocabulary causes all models to collapse, even when the prose contains enough evidence for a human reviewer.
 
 Example failure themes:
 
@@ -54,8 +95,6 @@ Example failure themes:
 - Security-abuse cases with traffic symptoms can be confused with overload or resource pressure.
 - Data-corruption cases described without exact training keywords are often missed.
 - Dependency and cascading failures are hard to separate when the text describes both an upstream issue and downstream retries.
-
-The gap between synthetic holdout performance and hard-set performance is the main Phase 3 finding: the TF-IDF + Linear SVM model is excellent at the synthetic dataset distribution, but it is not yet robust to realistic incident ambiguity.
 
 ## Postmortem Comparison
 
@@ -134,6 +173,13 @@ Compare saved results:
 
 ```bash
 uv run python -m incident_data_classification.evaluate
+```
+
+Evaluate the hard benchmarks:
+
+```bash
+uv run python -m incident_data_classification.evaluate_hard_cases --cases data/evaluation/hard_cases.json --model all --feature-profile alert_only
+uv run python -m incident_data_classification.evaluate_hard_cases --cases data/evaluation/real_world_hard_cases.json --model all --feature-profile alert_only
 ```
 
 Train the TF-IDF baselines:

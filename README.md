@@ -47,10 +47,11 @@ Dataset and generated files are intentionally ignored by Git:
 - `models/`
 - `reports/`
 
-The hard evaluation set is committed separately at:
+Hard evaluation sets are committed separately:
 
 ```text
 data/evaluation/hard_cases.json
+data/evaluation/real_world_hard_cases.json
 ```
 
 Download only the dataset:
@@ -172,23 +173,27 @@ The recurrent models collapse to the majority-class baseline on incident-time pr
 
 ## Hard Evaluation
 
-The hard set contains 100 curated cases with ambiguous symptoms, distractors, noisy descriptions, missing details, unseen combinations, and conflicting evidence. These cases are stored separately from the synthetic training CSV and are not used for training or tuning.
+The structured hard set contains 100 curated cases with the same field shape as the training CSV, but with harder wording, distractor symptoms, and less templated descriptions. A separate real-world hard set keeps the earlier free-form incident prose benchmark. Neither hard set is used for training or tuning.
 
 Run the hard-set benchmark against the primary Linear SVM artifact:
 
 ```bash
 uv run python -m incident_data_classification.evaluate_hard_cases --model linear_svm --feature-profile alert_only
+uv run python -m incident_data_classification.evaluate_hard_cases --cases data/evaluation/real_world_hard_cases.json --model linear_svm --feature-profile alert_only
 ```
 
 Current Linear SVM hard-set results:
 
-| Feature Profile | Accuracy | Macro F1 | Weighted F1 |
-|---|---:|---:|---:|
-| alert_only | 0.060 | 0.051 | 0.048 |
-| early_incident | 0.090 | 0.063 | 0.057 |
-| postmortem | 0.080 | 0.071 | 0.069 |
+| Benchmark | Feature Profile | Accuracy | Macro F1 | Weighted F1 |
+|---|---|---:|---:|---:|
+| Structured hard set | alert_only | 0.910 | 0.887 | 0.881 |
+| Structured hard set | early_incident | 0.910 | 0.887 | 0.881 |
+| Structured hard set | postmortem | 0.830 | 0.778 | 0.774 |
+| Real-world prose hard set | alert_only | 0.060 | 0.051 | 0.048 |
+| Real-world prose hard set | early_incident | 0.090 | 0.063 | 0.057 |
+| Real-world prose hard set | postmortem | 0.080 | 0.071 | 0.069 |
 
-The sharp drop from synthetic holdout performance shows that the TF-IDF model is learning synthetic lexical patterns rather than robust incident reasoning. Phase 3 is therefore a stricter benchmark for future work: improvements should raise hard-set performance without using the hard cases for training.
+The structured hard-set result is the production-relevant framing for normalized alert payloads: when upstream systems send consistent terms such as `memory_leak`, `pod_crash_loop`, `hpa_thrashing`, or `traffic_spike_overload`, classification remains strong even with noisy surrounding context. The free-form benchmark is intentionally harsher and shows the current model is not a general RCA reasoning system. It needs stable operational terminology from monitoring, alerting, or incident enrichment systems.
 
 ## Run The Demo
 

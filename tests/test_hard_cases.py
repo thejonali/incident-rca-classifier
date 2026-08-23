@@ -1,7 +1,11 @@
 from pathlib import Path
 
-from incident_data_classification.config import DEFAULT_HARD_CASES_PATH, ROOT_CAUSE_CATEGORIES
-from incident_data_classification.evaluate_hard_cases import build_hard_case_report, load_hard_cases
+from incident_data_classification.config import (
+    DEFAULT_HARD_CASES_PATH,
+    DEFAULT_REAL_WORLD_HARD_CASES_PATH,
+    ROOT_CAUSE_CATEGORIES,
+)
+from incident_data_classification.evaluate_hard_cases import build_hard_case_report, get_case_text, load_hard_cases
 
 
 def test_hard_cases_are_valid_and_separate_from_training_data():
@@ -15,6 +19,29 @@ def test_hard_cases_are_valid_and_separate_from_training_data():
     assert len(categories) == len(ROOT_CAUSE_CATEGORIES)
     assert DEFAULT_HARD_CASES_PATH.parent.name == "evaluation"
     assert DEFAULT_HARD_CASES_PATH.parent.parent.name == "data"
+    assert all("input" not in case for case in cases)
+    assert all("anomaly_types_detected" in case for case in cases)
+
+
+def test_real_world_hard_cases_are_valid_free_form_benchmark():
+    cases = load_hard_cases(DEFAULT_REAL_WORLD_HARD_CASES_PATH)
+    categories = {case["expected_category"] for case in cases}
+
+    assert len(cases) >= 100
+    assert categories <= set(ROOT_CAUSE_CATEGORIES)
+    assert len(categories) == len(ROOT_CAUSE_CATEGORIES)
+    assert all(case["input"].strip() for case in cases)
+
+
+def test_structured_hard_case_text_uses_profile_fields():
+    case = load_hard_cases(DEFAULT_HARD_CASES_PATH)[0]
+
+    alert_text = get_case_text(case, "alert_only")
+    postmortem_text = get_case_text(case, "postmortem")
+
+    assert case["anomaly_types_detected"].replace("_", " ") in alert_text
+    assert "root cause" not in alert_text
+    assert "primary rca" in postmortem_text
 
 
 def test_hard_case_report_is_separate_benchmark():
