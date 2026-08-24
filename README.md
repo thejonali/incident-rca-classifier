@@ -174,6 +174,38 @@ Current Linear SVM calibration results:
 
 These confidence scores do not make the classifier more accurate by themselves. They make the model easier to operate: high-confidence predictions can be handled automatically, while predictions below the validation-selected threshold can be routed to a human reviewer. Reliability diagrams are generated under `reports/` during calibration evaluation.
 
+## Similar Incident Retrieval
+
+Phase 5 adds local similar-incident retrieval so remediation guidance is grounded in historical incidents instead of a hard-coded category-to-remedy mapping. The current implementation uses a reproducible TF-IDF 1-2 gram retrieval index with cosine similarity. Chroma, FAISS, pgvector, or Qdrant would make sense later if the project adds persistent vector-database operations or external embedding models; for the current synthetic dataset, the dependency-light TF-IDF index matches the primary classifier and is easier to reproduce.
+
+Build retrieval indexes from the training split:
+
+```bash
+uv run python -m incident_data_classification.build_retrieval_index --feature-profile alert_only --max-rows 15000
+uv run python -m incident_data_classification.build_retrieval_index --feature-profile early_incident --max-rows 15000
+```
+
+Run classification with calibrated confidence and retrieved remediation evidence:
+
+```bash
+uv run python -m incident_data_classification.predict_with_retrieval --model linear_svm --feature-profile alert_only --text -1 --top-k 3
+```
+
+Evaluate retrieval quality on a held-out review sample:
+
+```bash
+uv run python -m incident_data_classification.evaluate_retrieval --feature-profile alert_only --max-rows 15000 --sample-size 100 --top-k 3
+```
+
+Current retrieval review results:
+
+| Feature Profile | Review Cases | Unfiltered Category Match@1 | Unfiltered Category Match@3 | Category-Filtered Mean Top-1 Similarity |
+|---|---:|---:|---:|---:|
+| alert_only | 100 | 0.970 | 0.990 | 0.954 |
+| early_incident | 100 | 0.930 | 0.980 | 0.899 |
+
+The production flow filters retrieved incidents by the predicted root-cause category, returns similarity scores, and names the source incident for the recommended remedy. If the classifier marks `requires_human_review: true`, the retrieved remedy should be treated as review evidence rather than an automatic remediation instruction.
+
 ## Operational Evaluation
 
 Phase 1 separates model input by incident stage so evaluation is less vulnerable to post-investigation leakage.
@@ -256,6 +288,8 @@ Dataset downloader
   -> CSV validation
   -> non-leaking text feature construction
   -> TF-IDF vectorizer + Linear SVM classifier
+  -> calibrated confidence and abstention
+  -> similar incident retrieval with source remediation evidence
   -> baseline model artifacts and evaluation reports
   -> optional tokenizer + label encoder
   -> legacy GRU/LSTM classifier training

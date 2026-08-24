@@ -14,8 +14,8 @@ from .train_baseline import BASELINE_MODELS
 
 
 SAMPLE_TEXT = (
-    "payment-service production checkout is failing after a traffic spike. "
-    "alerts include hpa_thrashing and high_error_rate, with no confirmed deploy regression."
+    "checkout-service production sev2 traffic_spike_overload hpa_thrashing "
+    "high_error_rate elevated_requests gateway saturation"
 )
 
 

@@ -59,6 +59,21 @@ Risk/coverage curve for Linear SVM `alert_only`:
 | 0.80 | 0.800 | 0.999 | 450 |
 | 0.70 | 0.700 | 0.999 | 675 |
 
+## Similar Incident Retrieval
+
+Phase 5 uses a local TF-IDF retrieval index over historical training-split incidents. The retrieved rows include source incident ID, category, cosine similarity, remediation, and prevention recommendation.
+
+Chroma was considered, but the current project does not yet need a persistent vector database or external embedding lifecycle. TF-IDF retrieval is reproducible with the existing dependency stack, aligns with the primary Linear SVM model, and avoids introducing infrastructure before the retrieval contract is validated.
+
+Retrieval review results on held-out test samples:
+
+| Feature Profile | Indexed Incidents | Review Cases | Unfiltered Category Match@1 | Unfiltered Category Match@3 | Category-Filtered Mean Top-1 Similarity |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| alert_only | 10,500 | 100 | 0.970 | 0.990 | 0.954 |
+| early_incident | 10,500 | 100 | 0.930 | 0.980 | 0.899 |
+
+`Unfiltered Category Match@1` measures whether the nearest retrieved incident has the same root-cause category as the query without applying the production category filter. `Category-Filtered Mean Top-1 Similarity` measures the similarity of the best evidence after filtering retrieval to the predicted or expected category. This is still a synthetic-data review metric, not proof of real incident retrieval quality.
+
 ## Hard Evaluation Sets
 
 Two hard benchmarks are tracked separately:
@@ -210,6 +225,15 @@ Evaluate Linear SVM confidence calibration:
 ```bash
 for profile in alert_only early_incident postmortem; do
   uv run python -m incident_data_classification.evaluate_confidence --model linear_svm --feature-profile "$profile" --max-rows 15000
+done
+```
+
+Build and review retrieval indexes:
+
+```bash
+for profile in alert_only early_incident; do
+  uv run python -m incident_data_classification.build_retrieval_index --feature-profile "$profile" --max-rows 15000
+  uv run python -m incident_data_classification.evaluate_retrieval --feature-profile "$profile" --max-rows 15000 --sample-size 100 --top-k 3
 done
 ```
 
