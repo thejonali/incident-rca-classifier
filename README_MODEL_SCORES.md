@@ -74,6 +74,23 @@ Retrieval review results on held-out test samples:
 
 `Unfiltered Category Match@1` measures whether the nearest retrieved incident has the same root-cause category as the query without applying the production category filter. `Category-Filtered Mean Top-1 Similarity` measures the similarity of the best evidence after filtering retrieval to the predicted or expected category. This is still a synthetic-data review metric, not proof of real incident retrieval quality.
 
+## Explainability And Evidence
+
+Phase 7 adds TF-IDF feature contribution explanations for baseline predictions. For Linear SVM and Logistic Regression, each supporting signal is computed as:
+
+```text
+tfidf_value * predicted_class_weight
+```
+
+For Naive Bayes, the feature signal is based on class log probability relative to the average class log probability. Only positive contributions are returned as supporting signals.
+
+The explained prediction output combines two evidence types:
+
+- Model evidence: important TF-IDF features that pushed the classifier toward the predicted class.
+- Historical evidence: retrieved similar incidents with source incident IDs, similarity scores, remediations, and prevention recommendations.
+
+These explanations are intentionally scoped. They identify model-supporting signals and retrieved examples; they do not claim causal proof.
+
 ## Hard Evaluation Sets
 
 Two hard benchmarks are tracked separately:
@@ -235,6 +252,12 @@ for profile in alert_only early_incident; do
   uv run python -m incident_data_classification.build_retrieval_index --feature-profile "$profile" --max-rows 15000
   uv run python -m incident_data_classification.evaluate_retrieval --feature-profile "$profile" --max-rows 15000 --sample-size 100 --top-k 3
 done
+```
+
+Run an explained classify-plus-retrieve prediction:
+
+```bash
+uv run python -m incident_data_classification.predict_with_retrieval --model linear_svm --feature-profile alert_only --text -1 --top-k 3 --top-features 8
 ```
 
 Train the TF-IDF baselines:

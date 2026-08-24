@@ -206,6 +206,26 @@ Current retrieval review results:
 
 The production flow filters retrieved incidents by the predicted root-cause category, returns similarity scores, and names the source incident for the recommended remedy. If the classifier marks `requires_human_review: true`, the retrieved remedy should be treated as review evidence rather than an automatic remediation instruction.
 
+## Explainability And Evidence
+
+Phase 7 adds model evidence to the classify-plus-retrieve command. For TF-IDF baselines, the explanation reports the highest positive feature contributions for the predicted class. In practical terms, these are the words or short phrases in the incident text that pushed the Linear SVM toward its classification.
+
+Run an explained prediction:
+
+```bash
+uv run python -m incident_data_classification.predict_with_retrieval --model linear_svm --feature-profile alert_only --text -1 --top-k 3 --top-features 8
+```
+
+The JSON output includes:
+
+- `explanation.method`: currently `tfidf_feature_contribution`.
+- `explanation.supporting_signals`: top TF-IDF terms with their feature weight and contribution.
+- `evidence.model_supporting_signals`: compact list of important model features.
+- `similar_incidents`: historical incidents with similarity scores and remediation evidence.
+- `remedy_source`: the source incident used for the recommended remedy.
+
+These are supporting signals, not causal proof. A high feature contribution means the term mattered to the model's decision. A similar incident means the historical text was close under the retrieval index. Neither one proves the true root cause without investigation.
+
 ## Operational Evaluation
 
 Phase 1 separates model input by incident stage so evaluation is less vulnerable to post-investigation leakage.
@@ -290,6 +310,7 @@ Dataset downloader
   -> TF-IDF vectorizer + Linear SVM classifier
   -> calibrated confidence and abstention
   -> similar incident retrieval with source remediation evidence
+  -> TF-IDF feature contribution evidence
   -> baseline model artifacts and evaluation reports
   -> optional tokenizer + label encoder
   -> legacy GRU/LSTM classifier training

@@ -1,8 +1,14 @@
 from pathlib import Path
+from types import SimpleNamespace
 
+import joblib
 import pandas as pd
 import pytest
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import Pipeline
+from sklearn.svm import LinearSVC
 
+from incident_data_classification.predict_with_retrieval import build_response
 from incident_data_classification.retrieval import (
     build_retrieval_index,
     load_retrieval_index,
@@ -96,3 +102,44 @@ def test_retrieval_index_round_trips(tmp_path: Path):
 
     matches = retrieve_similar_incidents(loaded, "payment timeout retries", top_k=1)
     assert matches[0]["incident_id"] == "INC-003"
+
+
+def test_predict_with_retrieval_response_includes_explanation_and_evidence(tmp_path: Path):
+    models_dir = tmp_path / "models"
+    artifact_dir = models_dir / "baselines" / "linear_svm" / "alert_only"
+    artifact_dir.mkdir(parents=True)
+    pipeline = Pipeline(
+        [
+            ("tfidf", TfidfVectorizer(ngram_range=(1, 2), min_df=1)),
+            ("model", LinearSVC(class_weight="balanced", dual="auto")),
+        ]
+    )
+    texts = [
+        "checkout traffic spike overload high error",
+        "checkout traffic spike hpa thrashing overload",
+        "worker memory leak heap growth restart",
+        "worker memory leak file descriptor leak",
+    ]
+    labels = ["TRAFFIC_OVERLOAD", "TRAFFIC_OVERLOAD", "RESOURCE_LEAK", "RESOURCE_LEAK"]
+    pipeline.fit(texts, labels)
+    joblib.dump(pipeline, artifact_dir / "model.joblib")
+
+    retrieval_dir = models_dir / "retrieval" / "alert_only"
+    retrieval_index = build_retrieval_index(make_incidents(), feature_profile="alert_only")
+    save_retrieval_index(retrieval_dir / "index.joblib", retrieval_index)
+    args = SimpleNamespace(
+        models_dir=models_dir,
+        model="linear_svm",
+        feature_profile="alert_only",
+        top_k=1,
+        top_features=3,
+        confidence_threshold=None,
+    )
+
+    response = build_response(args, "checkout traffic spike high error")
+
+    assert response["classification"] == "TRAFFIC_OVERLOAD"
+    assert response["explanation"]["supporting_signals"]
+    assert response["evidence"]["model_supporting_signals"]
+    assert response["similar_incidents"][0]["incident_id"] == "INC-002"
+    assert response["remedy_source"] == "INC-002"
