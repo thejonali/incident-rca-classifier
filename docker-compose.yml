@@ -1,0 +1,10 @@
+services:
+  incident-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      INCIDENT_MODELS_DIR: /app/models
+      INCIDENT_FEATURE_PROFILE: alert_only
+    volumes:
+      - ./models:/app/models:ro

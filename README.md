@@ -9,6 +9,7 @@ Incident root-cause classifier focused on a TF-IDF + Linear SVM model for fast, 
 - Trains TF-IDF classical baselines and uses Linear SVM as the strongest incident-time classifier.
 - Retains GRU and LSTM classifiers as legacy comparison models on the same stratified train/validation/test split.
 - Evaluates accuracy, macro F1, weighted F1, and per-class precision/recall/F1.
+- Exposes the Linear SVM classifier through a FastAPI service with confidence, abstention, explanations, and retrieved remediation evidence.
 - Runs an interactive GRU workflow-routing demo for custom incidents.
 - Runs a curated 10-sample batch demo that exercises mostly different classifications.
 
@@ -254,6 +255,57 @@ The JSON output includes:
 
 These are supporting signals, not causal proof. A high feature contribution means the term mattered to the model's decision. A similar incident means the historical text was close under the retrieval index. Neither one proves the true root cause without investigation.
 
+## Production API
+
+Phase 6 exposes only the TF-IDF + Linear SVM classifier. DistilBERT remains a benchmark artifact because it did not outperform Linear SVM and is much larger and slower for this dataset.
+
+Prepare the required local artifacts:
+
+```bash
+uv run python -m incident_data_classification.train_baseline --model linear_svm --feature-profile alert_only --max-rows 15000
+uv run python -m incident_data_classification.evaluate_confidence --model linear_svm --feature-profile alert_only --max-rows 15000
+uv run python -m incident_data_classification.build_retrieval_index --feature-profile alert_only --max-rows 15000
+```
+
+Start the API:
+
+```bash
+uv run uvicorn incident_data_classification.api.app:app --host 127.0.0.1 --port 8000
+```
+
+Endpoints:
+
+```text
+GET  /health
+GET  /v1/model
+POST /v1/incidents/classify
+```
+
+Example request:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/incidents/classify \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: demo-001" \
+  -d '{
+    "title": "Checkout traffic spike",
+    "severity": "SEV2",
+    "affected_services": ["checkout-service", "api-gateway"],
+    "primary_affected_service": "checkout-service",
+    "anomalies": ["traffic_spike_overload", "hpa_thrashing", "high_error_rate"]
+  }'
+```
+
+The response includes classification, calibrated confidence, human-review routing, alternatives, TF-IDF supporting signals, similar historical incidents, remediation evidence, model version, request ID, and inference latency.
+
+Run with Docker:
+
+```bash
+docker compose up --build
+```
+
+The container expects local model artifacts mounted at `./models`, which remains ignored by Git.
+
 ## Operational Evaluation
 
 Phase 1 separates model input by incident stage so evaluation is less vulnerable to post-investigation leakage.
@@ -339,6 +391,7 @@ Dataset downloader
   -> calibrated confidence and abstention
   -> similar incident retrieval with source remediation evidence
   -> TF-IDF feature contribution evidence
+  -> FastAPI service exposing the Linear SVM prediction contract
   -> baseline model artifacts and evaluation reports
   -> optional tokenizer + label encoder
   -> legacy GRU/LSTM classifier training

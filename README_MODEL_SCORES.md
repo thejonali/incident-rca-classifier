@@ -62,6 +62,10 @@ DistilBERT run configuration:
 
 DistilBERT improves substantially as the CPU-bounded run grows from 600 to 5,000 rows, but the final result still does not justify replacing TF-IDF + Linear SVM for this dataset. The transformer is close on synthetic test performance, weaker on the structured hard set, not meaningfully better on the free-form prose hard set, and orders of magnitude slower.
 
+## Service Model Decision
+
+The Phase 6 service exposes only the TF-IDF + Linear SVM artifact. Logistic Regression, Naive Bayes, GRU, LSTM, and DistilBERT remain benchmark models. Keeping the service single-model avoids exposing weaker or heavier alternatives as if they were production peers, while still retaining their metrics for comparison.
+
 ## Confidence Calibration
 
 Phase 4 measures confidence quality for the TF-IDF baseline path. The values below use the saved Linear SVM artifacts, fit one temperature on the validation split, and report calibration metrics on the held-out test split.
