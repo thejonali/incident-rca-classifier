@@ -7,6 +7,8 @@ from pathlib import Path
 from .config import DEFAULT_MODELS_DIR, DEFAULT_REPORTS_DIR, FEATURE_PROFILES
 from .train_baseline import BASELINE_MODELS
 
+TRANSFORMER_MODELS = ("distilbert",)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compare saved GRU and LSTM metrics across feature profiles")
@@ -40,6 +42,18 @@ def load_baseline_metrics(models_dir: Path, reports_dir: Path, model_name: str, 
         return json.loads(metrics_path.read_text(encoding="utf-8"))
 
     report_path = reports_dir / f"baseline_{model_name}_{feature_profile}_metrics.json"
+    if report_path.exists():
+        return json.loads(report_path.read_text(encoding="utf-8"))
+
+    return None
+
+
+def load_transformer_metrics(models_dir: Path, reports_dir: Path, model_name: str, feature_profile: str) -> dict | None:
+    metrics_path = models_dir / "transformers" / model_name / feature_profile / "metrics.json"
+    if metrics_path.exists():
+        return json.loads(metrics_path.read_text(encoding="utf-8"))
+
+    report_path = reports_dir / f"transformer_{model_name}_{feature_profile}_metrics.json"
     if report_path.exists():
         return json.loads(report_path.read_text(encoding="utf-8"))
 
@@ -86,6 +100,11 @@ def main() -> None:
         for feature_profile in FEATURE_PROFILES:
             metrics = load_baseline_metrics(args.models_dir, args.reports_dir, model_name, feature_profile)
             rows.append(format_metrics_row(display_name, feature_profile, metrics))
+
+    for model_name in TRANSFORMER_MODELS:
+        for feature_profile in FEATURE_PROFILES:
+            metrics = load_transformer_metrics(args.models_dir, args.reports_dir, model_name, feature_profile)
+            rows.append(format_metrics_row(model_name.upper(), feature_profile, metrics))
 
     print("model                feature_profile  rows  accuracy  macro_f1  weighted_f1  train_time/infer")
     print("-------------------  ---------------  ----  --------  --------  -----------  ----------------")

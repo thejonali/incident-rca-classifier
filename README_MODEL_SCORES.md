@@ -29,12 +29,38 @@ Run configuration:
 | Naive Bayes | alert_only | 0.933 | 0.775 | 0.906 | 0.1s | 0.012ms | TF-IDF 1-2 grams |
 | Naive Bayes | early_incident | 0.922 | 0.724 | 0.885 | 0.3s | 0.023ms | TF-IDF 1-2 grams |
 | Naive Bayes | postmortem | 0.922 | 0.721 | 0.884 | 0.8s | 0.066ms | TF-IDF 1-2 grams |
+| DistilBERT | alert_only | 0.995 | 0.990 | 0.995 | 170.2s | 7.303ms | 5,000 rows, 300 CPU steps |
 
 The recurrent models collapse to the majority-class baseline on incident-time profiles. `RESOURCE_EXHAUSTION` accounts for 640 of 2,250 test rows, so always predicting that class yields 0.284 accuracy and very low macro F1. Adding environment, cloud provider, region, and the first two timeline events in `early_incident` did not improve GRU/LSTM performance.
 
 The TF-IDF baselines show that the alert fields do contain strong synthetic lexical signal. Linear SVM is the best incident-time model in this experiment, reaching 0.997 accuracy and 0.994 macro F1 on `alert_only`.
 
+DistilBERT can approach the Linear SVM synthetic score when fine-tuned for a bounded CPU run, but it does not beat the Linear SVM and is much heavier: roughly 170 seconds of training, 7.303ms inference per incident, and a 256.1 MB artifact for the tested `alert_only` run.
+
 The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
+
+## Transformer Benchmark
+
+Phase 8 benchmarks `distilbert-base-uncased` as a small pretrained language model. The benchmark uses the same synthetic dataset loader, feature profiles, and stratified train/validation/test split as the other models. It is intentionally not the default model unless it demonstrates a meaningful improvement over the lightweight baseline.
+
+DistilBERT run configuration:
+
+- Pretrained model: `distilbert-base-uncased`
+- Feature profile: `alert_only`
+- Rows used: 5,000
+- Epoch cap: 2
+- Optimizer step cap: 300
+- Batch size: 16
+- Max sequence length: 96
+- Device: CPU
+- Model size: 256.1 MB
+
+| Model | Synthetic Accuracy | Synthetic Macro F1 | Structured Hard Accuracy | Structured Hard Macro F1 | Prose Hard Accuracy | Prose Hard Macro F1 | Train Time | Inference |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Linear SVM | 0.997 | 0.994 | 0.910 | 0.887 | 0.060 | 0.051 | 0.5s | 0.016ms |
+| DistilBERT | 0.995 | 0.990 | 0.830 | 0.778 | 0.090 | 0.038 | 170.2s | 7.303ms synthetic / 13.430ms hard |
+
+DistilBERT improves substantially as the CPU-bounded run grows from 600 to 5,000 rows, but the final result still does not justify replacing TF-IDF + Linear SVM for this dataset. The transformer is close on synthetic test performance, weaker on the structured hard set, not meaningfully better on the free-form prose hard set, and orders of magnitude slower.
 
 ## Confidence Calibration
 
@@ -113,6 +139,7 @@ Neither hard set is used for training or tuning.
 | Naive Bayes | alert_only | 100 | 0.750 | 0.667 | 0.667 | 25 |
 | Naive Bayes | early_incident | 100 | 0.750 | 0.667 | 0.667 | 25 |
 | Naive Bayes | postmortem | 100 | 0.710 | 0.631 | 0.633 | 29 |
+| DistilBERT | alert_only | 100 | 0.830 | 0.778 | 0.774 | 17 |
 | GRU | alert_only | 100 | 0.080 | 0.012 | 0.012 | 92 |
 | GRU | early_incident | 100 | 0.080 | 0.012 | 0.012 | 92 |
 | GRU | postmortem | 100 | 0.290 | 0.222 | 0.225 | 71 |
@@ -135,6 +162,7 @@ The structured benchmark shows that TF-IDF models remain strong when the incomin
 | Naive Bayes | alert_only | 100 | 0.090 | 0.081 | 0.075 | 91 |
 | Naive Bayes | early_incident | 100 | 0.090 | 0.081 | 0.075 | 91 |
 | Naive Bayes | postmortem | 100 | 0.230 | 0.203 | 0.194 | 77 |
+| DistilBERT | alert_only | 100 | 0.090 | 0.038 | 0.034 | 91 |
 | GRU | alert_only | 100 | 0.060 | 0.009 | 0.007 | 94 |
 | GRU | early_incident | 100 | 0.060 | 0.009 | 0.007 | 94 |
 | GRU | postmortem | 100 | 0.060 | 0.010 | 0.007 | 94 |
@@ -258,6 +286,14 @@ Run an explained classify-plus-retrieve prediction:
 
 ```bash
 uv run python -m incident_data_classification.predict_with_retrieval --model linear_svm --feature-profile alert_only --text -1 --top-k 3 --top-features 8
+```
+
+Train and evaluate the DistilBERT benchmark:
+
+```bash
+uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile alert_only --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
+uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/hard_cases.json --artifact-name distilbert --feature-profile alert_only --batch-size 16 --max-length 96
+uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/real_world_hard_cases.json --artifact-name distilbert --feature-profile alert_only --batch-size 16 --max-length 96
 ```
 
 Train the TF-IDF baselines:

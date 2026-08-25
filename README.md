@@ -93,6 +93,12 @@ Train the primary Linear SVM model:
 uv run python -m incident_data_classification.train_baseline --model linear_svm --feature-profile alert_only --max-rows 15000
 ```
 
+Train the DistilBERT transformer benchmark with CPU-friendly settings:
+
+```bash
+uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile alert_only --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
+```
+
 Train all TF-IDF baselines:
 
 ```bash
@@ -147,6 +153,28 @@ uv run python -m incident_data_classification.evaluate
 ```
 
 Current saved metrics are documented in [README_MODEL_SCORES.md](README_MODEL_SCORES.md).
+
+## Transformer Benchmark
+
+Phase 8 adds a DistilBERT benchmark to test whether a pretrained language model improves generalization enough to justify the extra cost. It uses the same stratified train/validation/test split and the same feature-profile text construction as the other models.
+
+Current CPU-bounded DistilBERT result:
+
+| Model | Feature Profile | Rows | Accuracy | Macro F1 | Train Time | Inference | Model Size |
+|---|---|---:|---:|---:|---:|---:|---:|
+| DistilBERT | alert_only | 5,000 | 0.995 | 0.990 | 170.2s | 7.303ms | 256.1 MB |
+| Linear SVM | alert_only | 15,000 | 0.997 | 0.994 | 0.5s | 0.016ms | small joblib artifact |
+
+Hard-set comparison:
+
+| Model | Benchmark | Accuracy | Macro F1 | Weighted F1 |
+|---|---|---:|---:|---:|
+| DistilBERT | Structured hard set | 0.830 | 0.778 | 0.774 |
+| Linear SVM | Structured hard set | 0.910 | 0.887 | 0.881 |
+| DistilBERT | Real-world prose hard set | 0.090 | 0.038 | 0.034 |
+| Linear SVM | Real-world prose hard set | 0.060 | 0.051 | 0.048 |
+
+DistilBERT can approach the synthetic Linear SVM score within a few minutes on CPU, but it does not outperform the primary model and is far more expensive to train, store, and run. The current default remains TF-IDF + Linear SVM.
 
 ## Confidence Calibration
 
