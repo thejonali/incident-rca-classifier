@@ -1,11 +1,11 @@
 # Model Scores
 
-These results come from full-dataset training runs on `incidents_training_dataset.csv`. The dataset is synthetic, so treat these as reproducibility metrics for this experiment rather than claims about real incident RCA performance.
+These results come from reproducible training runs on `incidents_training_dataset.csv`. The dataset is synthetic, so treat these as reproducibility metrics for this experiment rather than claims about real incident RCA performance.
 
 Run configuration:
 
-- Rows used: 15,000
-- Test rows: 2,250
+- Rows used: 15,000 for GRU, LSTM, and TF-IDF baselines; 5,000 for DistilBERT
+- Test rows: 2,250 for 15,000-row runs; 750 for DistilBERT
 - Split strategy: stratified train/validation/test split
 - Device: CPU
 - Saved artifacts: `models/<model>/<feature_profile>/`
@@ -29,13 +29,15 @@ Run configuration:
 | Naive Bayes | alert_only | 0.933 | 0.775 | 0.906 | 0.1s | 0.012ms | TF-IDF 1-2 grams |
 | Naive Bayes | early_incident | 0.922 | 0.724 | 0.885 | 0.3s | 0.023ms | TF-IDF 1-2 grams |
 | Naive Bayes | postmortem | 0.922 | 0.721 | 0.884 | 0.8s | 0.066ms | TF-IDF 1-2 grams |
-| DistilBERT | alert_only | 0.995 | 0.990 | 0.995 | 170.2s | 7.303ms | 5,000 rows, 300 CPU steps |
+| DistilBERT | alert_only | 0.995 | 0.990 | 0.995 | 175.8s | 7.534ms | 5,000 rows, 300 CPU steps |
+| DistilBERT | early_incident | 0.947 | 0.847 | 0.933 | 258.8s | 13.164ms | 5,000 rows, 300 CPU steps |
+| DistilBERT | postmortem | 0.955 | 0.874 | 0.945 | 314.7s | 15.694ms | 5,000 rows, 300 CPU steps |
 
 The recurrent models collapse to the majority-class baseline on incident-time profiles. `RESOURCE_EXHAUSTION` accounts for 640 of 2,250 test rows, so always predicting that class yields 0.284 accuracy and very low macro F1. Adding environment, cloud provider, region, and the first two timeline events in `early_incident` did not improve GRU/LSTM performance.
 
 The TF-IDF baselines show that the alert fields do contain strong synthetic lexical signal. Linear SVM is the best incident-time model in this experiment, reaching 0.997 accuracy and 0.994 macro F1 on `alert_only`.
 
-DistilBERT can approach the Linear SVM synthetic score when fine-tuned for a bounded CPU run, but it does not beat the Linear SVM and is much heavier: roughly 170 seconds of training, 7.303ms inference per incident, and a 256.1 MB artifact for the tested `alert_only` run.
+DistilBERT can approach the Linear SVM synthetic score when fine-tuned for a bounded CPU run, but it does not beat the Linear SVM and is much heavier. The `alert_only` run took 175.8 seconds with 7.534ms inference per incident, and each tested transformer artifact is 256.1 MB.
 
 The postmortem profile is dramatically easier because it includes `timeline_summary`, `root_cause_description`, and `contributing_factors`. Those fields are often discovered during or after investigation, so the high postmortem score should not be treated as live-triage performance.
 
@@ -55,12 +57,16 @@ DistilBERT run configuration:
 - Device: CPU
 - Model size: 256.1 MB
 
-| Model | Synthetic Accuracy | Synthetic Macro F1 | Structured Hard Accuracy | Structured Hard Macro F1 | Prose Hard Accuracy | Prose Hard Macro F1 | Train Time | Inference |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Linear SVM | 0.997 | 0.994 | 0.910 | 0.887 | 0.060 | 0.051 | 0.5s | 0.016ms |
-| DistilBERT | 0.995 | 0.990 | 0.830 | 0.778 | 0.090 | 0.038 | 170.2s | 7.303ms synthetic / 13.430ms hard |
+| Model | Feature Profile | Synthetic Accuracy | Synthetic Macro F1 | Structured Hard Accuracy | Structured Hard Macro F1 | Prose Hard Accuracy | Prose Hard Macro F1 | Train Time | Inference |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Linear SVM | alert_only | 0.997 | 0.994 | 0.910 | 0.887 | 0.060 | 0.051 | 0.5s | 0.016ms |
+| Linear SVM | early_incident | 0.996 | 0.993 | 0.910 | 0.887 | 0.090 | 0.063 | 1.0s | 0.029ms |
+| Linear SVM | postmortem | 0.992 | 0.986 | 0.830 | 0.778 | 0.080 | 0.071 | 3.5s | 0.066ms |
+| DistilBERT | alert_only | 0.995 | 0.990 | 0.830 | 0.778 | 0.090 | 0.038 | 175.8s | 7.534ms |
+| DistilBERT | early_incident | 0.947 | 0.847 | 0.750 | 0.667 | 0.080 | 0.025 | 258.8s | 13.164ms |
+| DistilBERT | postmortem | 0.955 | 0.874 | 0.750 | 0.667 | 0.080 | 0.026 | 314.7s | 15.694ms |
 
-DistilBERT improves substantially as the CPU-bounded run grows from 600 to 5,000 rows, but the final result still does not justify replacing TF-IDF + Linear SVM for this dataset. The transformer is close on synthetic test performance, weaker on the structured hard set, not meaningfully better on the free-form prose hard set, and orders of magnitude slower.
+DistilBERT improves substantially as the CPU-bounded run grows from 600 to 5,000 rows, but the final matrix still does not justify replacing TF-IDF + Linear SVM for this dataset. The transformer is close on `alert_only` synthetic test performance, weaker on `early_incident` and `postmortem` under the same step budget, weaker on the structured hard set, not meaningfully better on the free-form prose hard set, and orders of magnitude slower.
 
 ## Service Model Decision
 
@@ -144,6 +150,8 @@ Neither hard set is used for training or tuning.
 | Naive Bayes | early_incident | 100 | 0.750 | 0.667 | 0.667 | 25 |
 | Naive Bayes | postmortem | 100 | 0.710 | 0.631 | 0.633 | 29 |
 | DistilBERT | alert_only | 100 | 0.830 | 0.778 | 0.774 | 17 |
+| DistilBERT | early_incident | 100 | 0.750 | 0.667 | 0.667 | 25 |
+| DistilBERT | postmortem | 100 | 0.750 | 0.667 | 0.667 | 25 |
 | GRU | alert_only | 100 | 0.080 | 0.012 | 0.012 | 92 |
 | GRU | early_incident | 100 | 0.080 | 0.012 | 0.012 | 92 |
 | GRU | postmortem | 100 | 0.290 | 0.222 | 0.225 | 71 |
@@ -167,6 +175,8 @@ The structured benchmark shows that TF-IDF models remain strong when the incomin
 | Naive Bayes | early_incident | 100 | 0.090 | 0.081 | 0.075 | 91 |
 | Naive Bayes | postmortem | 100 | 0.230 | 0.203 | 0.194 | 77 |
 | DistilBERT | alert_only | 100 | 0.090 | 0.038 | 0.034 | 91 |
+| DistilBERT | early_incident | 100 | 0.080 | 0.025 | 0.018 | 92 |
+| DistilBERT | postmortem | 100 | 0.080 | 0.026 | 0.018 | 92 |
 | GRU | alert_only | 100 | 0.060 | 0.009 | 0.007 | 94 |
 | GRU | early_incident | 100 | 0.060 | 0.009 | 0.007 | 94 |
 | GRU | postmortem | 100 | 0.060 | 0.010 | 0.007 | 94 |
@@ -295,9 +305,11 @@ uv run python -m incident_data_classification.predict_with_retrieval --model lin
 Train and evaluate the DistilBERT benchmark:
 
 ```bash
-uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile alert_only --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
-uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/hard_cases.json --artifact-name distilbert --feature-profile alert_only --batch-size 16 --max-length 96
-uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/real_world_hard_cases.json --artifact-name distilbert --feature-profile alert_only --batch-size 16 --max-length 96
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile "$profile" --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
+  uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/hard_cases.json --artifact-name distilbert --feature-profile "$profile" --batch-size 16 --max-length 96
+  uv run python -m incident_data_classification.evaluate_transformer_hard_cases --cases data/evaluation/real_world_hard_cases.json --artifact-name distilbert --feature-profile "$profile" --batch-size 16 --max-length 96
+done
 ```
 
 Train the TF-IDF baselines:

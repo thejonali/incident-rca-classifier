@@ -97,7 +97,9 @@ uv run python -m incident_data_classification.train_baseline --model linear_svm 
 Train the DistilBERT transformer benchmark with CPU-friendly settings:
 
 ```bash
-uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile alert_only --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
+for profile in alert_only early_incident postmortem; do
+  uv run python -m incident_data_classification.train_transformer --model-name distilbert-base-uncased --artifact-name distilbert --feature-profile "$profile" --max-rows 5000 --epochs 2 --batch-size 16 --max-steps 300 --max-length 96
+done
 ```
 
 Train all TF-IDF baselines:
@@ -163,19 +165,29 @@ Current CPU-bounded DistilBERT result:
 
 | Model | Feature Profile | Rows | Accuracy | Macro F1 | Train Time | Inference | Model Size |
 |---|---|---:|---:|---:|---:|---:|---:|
-| DistilBERT | alert_only | 5,000 | 0.995 | 0.990 | 170.2s | 7.303ms | 256.1 MB |
+| DistilBERT | alert_only | 5,000 | 0.995 | 0.990 | 175.8s | 7.534ms | 256.1 MB |
+| DistilBERT | early_incident | 5,000 | 0.947 | 0.847 | 258.8s | 13.164ms | 256.1 MB |
+| DistilBERT | postmortem | 5,000 | 0.955 | 0.874 | 314.7s | 15.694ms | 256.1 MB |
 | Linear SVM | alert_only | 15,000 | 0.997 | 0.994 | 0.5s | 0.016ms | small joblib artifact |
 
 Hard-set comparison:
 
-| Model | Benchmark | Accuracy | Macro F1 | Weighted F1 |
-|---|---|---:|---:|---:|
-| DistilBERT | Structured hard set | 0.830 | 0.778 | 0.774 |
-| Linear SVM | Structured hard set | 0.910 | 0.887 | 0.881 |
-| DistilBERT | Real-world prose hard set | 0.090 | 0.038 | 0.034 |
-| Linear SVM | Real-world prose hard set | 0.060 | 0.051 | 0.048 |
+| Model | Benchmark | Feature Profile | Accuracy | Macro F1 | Weighted F1 |
+|---|---|---|---:|---:|---:|
+| DistilBERT | Structured hard set | alert_only | 0.830 | 0.778 | 0.774 |
+| DistilBERT | Structured hard set | early_incident | 0.750 | 0.667 | 0.667 |
+| DistilBERT | Structured hard set | postmortem | 0.750 | 0.667 | 0.667 |
+| Linear SVM | Structured hard set | alert_only | 0.910 | 0.887 | 0.881 |
+| Linear SVM | Structured hard set | early_incident | 0.910 | 0.887 | 0.881 |
+| Linear SVM | Structured hard set | postmortem | 0.830 | 0.778 | 0.774 |
+| DistilBERT | Real-world prose hard set | alert_only | 0.090 | 0.038 | 0.034 |
+| DistilBERT | Real-world prose hard set | early_incident | 0.080 | 0.025 | 0.018 |
+| DistilBERT | Real-world prose hard set | postmortem | 0.080 | 0.026 | 0.018 |
+| Linear SVM | Real-world prose hard set | alert_only | 0.060 | 0.051 | 0.048 |
+| Linear SVM | Real-world prose hard set | early_incident | 0.090 | 0.063 | 0.057 |
+| Linear SVM | Real-world prose hard set | postmortem | 0.080 | 0.071 | 0.069 |
 
-DistilBERT can approach the synthetic Linear SVM score within a few minutes on CPU, but it does not outperform the primary model and is far more expensive to train, store, and run. The current default remains TF-IDF + Linear SVM.
+DistilBERT can approach the synthetic Linear SVM score on `alert_only`, but it does not outperform the primary model and is far more expensive to train, store, and run. The `early_incident` and `postmortem` transformer runs are slower and weaker under the same CPU step budget. The current default remains TF-IDF + Linear SVM.
 
 ## Confidence Calibration
 
